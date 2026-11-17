@@ -17,6 +17,9 @@ import * as noteLock from "./notes/noteLock";
 import * as memoToolbar from "./features/memoToolbar";
 import * as memoState from "./features/memoState";
 import * as annotationImage from "./pdf/annotationImage";
+import * as chat from "./chat/chatSession";
+import * as sections from "./pdf/sections";
+import * as chatPanel from "./features/sidebar/chatPanel";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
@@ -38,6 +41,9 @@ const api = {
   memoToolbar,
   memoState,
   annotationImage,
+  chat,
+  sections,
+  chatPanel,
 };
 
 class Addon {

@@ -334,3 +334,12 @@ export function errorMessage(e: unknown): string {
   }
   return String(e);
 }
+
+/**
+ * Starts a long-lived claude process (sidebar chat). The caller owns the
+ * process: it writes stream-json lines to stdin and reads stdout.
+ */
+export async function launchClaude(args: string[], workdir: string) {
+  const bin = await requireClaude();
+  return launch(bin.path, args, { workdir, stderr: "pipe" });
+}
