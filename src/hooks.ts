@@ -3,6 +3,7 @@ import { createZToolkit } from "./utils/ztoolkit";
 import { onPrefsPaneLoad, registerPrefsPane } from "./modules/prefsPane";
 import { ensureUserPrompts } from "./prompts";
 import { registerTranslate, unregisterTranslate } from "./features/translate";
+import { registerContextNoteMenu } from "./features/contextNoteMenu";
 
 async function onStartup() {
   await Promise.all([
@@ -14,6 +15,7 @@ async function onStartup() {
   initLocale();
   registerPrefsPane();
   registerTranslate();
+  registerContextNoteMenu();
 
   try {
     await ensureUserPrompts();

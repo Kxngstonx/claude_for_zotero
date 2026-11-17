@@ -83,6 +83,8 @@ export function classifyError(
 export class TurnCollector {
   text = "";
   sessionId: string | null = null;
+  /** Resolved model id from system/init (e.g. "claude-opus-5-5"). */
+  model: string | null = null;
   assistantError: string | null = null;
   rateLimited = false;
   result: any | null = null;
@@ -92,8 +94,10 @@ export class TurnCollector {
     if (ev.parent_tool_use_id) return null; // sub-agent output
     switch (ev.type) {
       case "system":
-        if (ev.subtype === "init" && ev.session_id)
-          this.sessionId = ev.session_id;
+        if (ev.subtype === "init") {
+          if (ev.session_id) this.sessionId = ev.session_id;
+          if (ev.model) this.model = String(ev.model);
+        }
         return null;
       case "assistant":
         if (ev.error) this.assistantError = String(ev.error);

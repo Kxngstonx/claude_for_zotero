@@ -39,7 +39,13 @@ test("textDelta returns only text_delta text", () => {
 
 // Event sequence recorded from claude 2.1.326 (abridged).
 const success = [
-  { type: "system", subtype: "init", session_id: "s1", tools: [] },
+  {
+    type: "system",
+    subtype: "init",
+    session_id: "s1",
+    model: "claude-haiku-5-5",
+    tools: [],
+  },
   delta("thinking_delta", { thinking: "" }),
   delta("text_delta", { text: "PO" }),
   delta("text_delta", { text: "NG" }),
@@ -64,6 +70,7 @@ test("TurnCollector collects streamed text and session id", () => {
   assert.deepEqual(seen, ["PO", "NG"]);
   assert.equal(t.finalText(), "PONG");
   assert.equal(t.sessionId, "s1");
+  assert.equal(t.model, "claude-haiku-5-5");
   assert.equal(t.error(), null);
 });
 
