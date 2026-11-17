@@ -4,6 +4,10 @@ import { onPrefsPaneLoad, registerPrefsPane } from "./modules/prefsPane";
 import { ensureUserPrompts } from "./prompts";
 import { registerTranslate, unregisterTranslate } from "./features/translate";
 import { registerContextNoteMenu } from "./features/contextNoteMenu";
+import {
+  registerMemoPanel,
+  unregisterMemoPanel,
+} from "./features/sidebar/memoPanel";
 
 async function onStartup() {
   await Promise.all([
@@ -16,6 +20,7 @@ async function onStartup() {
   registerPrefsPane();
   registerTranslate();
   registerContextNoteMenu();
+  registerMemoPanel();
 
   try {
     await ensureUserPrompts();
@@ -46,6 +51,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 
 function onShutdown(): void {
   unregisterTranslate();
+  unregisterMemoPanel();
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;
