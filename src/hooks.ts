@@ -2,6 +2,7 @@ import { initLocale } from "./utils/locale";
 import { createZToolkit } from "./utils/ztoolkit";
 import { onPrefsPaneLoad, registerPrefsPane } from "./modules/prefsPane";
 import { ensureUserPrompts } from "./prompts";
+import { registerTranslate, unregisterTranslate } from "./features/translate";
 
 async function onStartup() {
   await Promise.all([
@@ -12,6 +13,7 @@ async function onStartup() {
 
   initLocale();
   registerPrefsPane();
+  registerTranslate();
 
   try {
     await ensureUserPrompts();
@@ -41,6 +43,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 }
 
 function onShutdown(): void {
+  unregisterTranslate();
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;

@@ -3,7 +3,6 @@ import {
   ClipboardHelper,
   DialogHelper,
   FilePickerHelper,
-  KeyboardManager,
   makeHelperTool,
   ProgressWindowHelper,
   UITool,
@@ -47,7 +46,6 @@ function initZToolkit(_ztoolkit: ReturnType<typeof createZToolkit>) {
  */
 class ZoteroToolkit extends BasicTool {
   UI: UITool;
-  Keyboard: KeyboardManager;
   Clipboard: typeof ClipboardHelper;
   FilePicker: typeof FilePickerHelper;
   ProgressWindow: typeof ProgressWindowHelper;
@@ -57,7 +55,6 @@ class ZoteroToolkit extends BasicTool {
   constructor() {
     super();
     this.UI = new UITool(this);
-    this.Keyboard = new KeyboardManager(this);
     this.Clipboard = makeHelperTool(ClipboardHelper, this);
     this.FilePicker = makeHelperTool(FilePickerHelper, this);
     this.ProgressWindow = makeHelperTool(ProgressWindowHelper, this);
