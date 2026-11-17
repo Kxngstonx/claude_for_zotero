@@ -61,6 +61,6 @@
   "private": true,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/local/zotero-claude-assist.git"
+    "url": "git+https://github.com/Kxngstonx/claude_for_zotero.git"
   }
 }
