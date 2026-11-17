@@ -5,9 +5,9 @@ import { getLocaleID } from "../../utils/locale";
 import { mountChat, unmountChats } from "./chatPanel";
 import { el } from "./dom";
 import { paperItem } from "../../notes/contextNote";
-import { collectPending, isMemoBatchRunning } from "../memoBatch";
 import {
   memoState,
+  memoStatus,
   onMemoStateChange,
   startMemoBatch,
   summaryText,
@@ -61,32 +61,26 @@ function render(body: HTMLElement, itemID: number) {
   );
   memo.append(root);
 
-  const running = isMemoBatchRunning(item);
+  const m = memoStatus(item);
   const st = memoState(itemID);
-  // Scanning annotations is skipped while running (rerenders on every answer).
-  const { pending } = running ? { pending: [] } : collectPending(item);
 
   root.append(
     el(
       doc,
       "div",
-      running
+      m.running
         ? "메모 질문을 처리하는 중입니다."
-        : `대기 중인 메모 질문: ${pending.length}개`,
+        : `대기 중인 메모 질문: ${m.pending}개`,
     ),
   );
 
   const button = el(doc, "button", "메모 질문 답변");
-  button.disabled = running || pending.length === 0 || !item.library.editable;
+  button.disabled = !m.canRun;
   button.addEventListener("click", () => void startMemoBatch(item));
   root.append(button);
 
-  if (running) {
-    const line =
-      st.total !== undefined
-        ? `${st.done ?? 0}/${st.total} · ${st.stage ?? ""}`
-        : (st.stage ?? "");
-    root.append(el(doc, "div", line, "opacity:0.8;"));
+  if (m.running) {
+    root.append(el(doc, "div", `${m.progress} · ${m.stage}`, "opacity:0.8;"));
     return;
   }
 

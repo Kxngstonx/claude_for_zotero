@@ -1,17 +1,13 @@
-// Reader toolbar button for memo questions, next to other plugins' toolbar
-// controls (user request 2026-11-17), so the side panel need not be open.
-//
-// Label = what a click does:
-//   "Claude 메모 N"     → answer N pending @claude questions
-//   "Claude 답변 d/t"   → running (disabled; tooltip shows the stage)
-//   "질문 노트"          → nothing pending: open the Q&A note
+// Reader toolbar button (user requests 2026-11-17): always "Claude", with
+// the number of pending @claude memo questions ("Claude · 3") or the batch
+// progress ("Claude · 2/5"); a click opens the paper's Claude chat window,
+// where memo questions are answered (button or /memos).
 // renderToolbar covers readers opened later; already-open readers get the
 // button appended to ".toolbar .end" (as the Margin Notes plugin does).
 
 import { paperItem } from "../notes/contextNote";
-import { findQaNote } from "../notes/qaNote";
-import { collectPending, isMemoBatchRunning } from "./memoBatch";
-import { memoState, onMemoStateChange, startMemoBatch } from "./memoState";
+import { memoStatus, onMemoStateChange } from "./memoState";
+import { openChatWindow } from "./chatWindow";
 
 const CLASS = "claudeassist-memo-button";
 const STYLE =
@@ -49,42 +45,23 @@ function allButtons(): HTMLButtonElement[] {
 function update(button: HTMLButtonElement) {
   const item = Zotero.Items.get(paperIdOf(button));
   if (!item) return;
-  const running = isMemoBatchRunning(item);
-  if (running) {
-    const st = memoState(item.id);
-    button.textContent =
-      st.total !== undefined
-        ? `Claude 답변 ${st.done ?? 0}/${st.total}`
-        : "Claude 준비 중…";
-    button.title = st.stage ?? "메모 질문 처리 중";
-    button.disabled = true;
-    return;
-  }
-  const { pending } = collectPending(item);
-  if (pending.length) {
-    button.textContent = `Claude 메모 ${pending.length}`;
-    button.title = `대기 중인 @claude 질문 ${pending.length}개에 답합니다`;
-    button.disabled = !item.library.editable;
-  } else if (findQaNote(item)) {
-    button.textContent = "질문 노트";
-    button.title = `대기 중인 질문이 없습니다. Claude 질문 노트를 엽니다`;
-    button.disabled = false;
-  } else {
-    button.textContent = "Claude 메모";
-    button.title = `대기 중인 @claude 질문이 없습니다`;
-    button.disabled = true;
-  }
+  const m = memoStatus(item);
+  button.disabled = false;
+  button.textContent = m.running
+    ? `Claude · ${m.progress}`
+    : m.pending
+      ? `Claude · ${m.pending}`
+      : "Claude";
+  button.title = m.running
+    ? `메모 질문 처리 중: ${m.stage} — 클릭하면 Claude 채팅 창`
+    : m.pending
+      ? `Claude 채팅 창 열기 (대기 중인 @claude 메모 질문 ${m.pending}개)`
+      : "Claude 채팅 창 열기";
 }
 
 function onClick(button: HTMLButtonElement) {
   const item = Zotero.Items.get(paperIdOf(button));
-  if (!item || isMemoBatchRunning(item)) return;
-  if (collectPending(item).pending.length) {
-    void startMemoBatch(item);
-    return;
-  }
-  const note = findQaNote(item);
-  if (note) Zotero.getMainWindow().ZoteroPane.openNoteWindow(note.id);
+  if (item) openChatWindow(item);
 }
 
 function mount(reader: any, doc: Document, append?: (n: Node) => void) {

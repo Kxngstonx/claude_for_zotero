@@ -83,6 +83,15 @@ export class ChatSession {
   private inflight: Promise<unknown> | null = null;
   /** Model the running process was started with. */
   private procModel: string | null = null;
+  /** Notices that arrived during a send; added after its answer. */
+  private deferredNotices: string[] = [];
+  private changeListeners = new Set<() => void>();
+
+  /** Subscribes to history changes (any saved change); returns unsubscribe. */
+  onChange(fn: () => void): () => void {
+    this.changeListeners.add(fn);
+    return () => this.changeListeners.delete(fn);
+  }
 
   constructor(item: Zotero.Item) {
     this.itemID = item.id;
@@ -131,6 +140,13 @@ export class ChatSession {
       historyFile,
       JSON.stringify(this.history ?? emptyHistory()),
     );
+    for (const fn of this.changeListeners) {
+      try {
+        fn();
+      } catch (e) {
+        Zotero.debug(`[Claude Assist] chat listener failed: ${e}`);
+      }
+    }
   }
 
   get running(): boolean {
@@ -327,6 +343,12 @@ export class ChatSession {
       this.inflight = null;
       this.busy = false;
       this.armIdle();
+      if (this.deferredNotices.length) {
+        const notices = this.deferredNotices.splice(0);
+        void (async () => {
+          for (const t of notices) await this.addNotice(t);
+        })();
+      }
     }
   }
 
@@ -382,6 +404,18 @@ export class ChatSession {
     h.messages.push(msg);
     await this.save();
     return msg;
+  }
+
+  /** Adds an information line (not sent to the model). */
+  async addNotice(text: string): Promise<void> {
+    // Keep a question and its answer together: add after the running send.
+    if (this.busy) {
+      this.deferredNotices.push(text);
+      return;
+    }
+    const h = await this.load();
+    h.messages.push({ role: "notice", text, at: new Date().toISOString() });
+    await this.save();
   }
 
   /** Records that message `index` was saved to the Q&A note. */

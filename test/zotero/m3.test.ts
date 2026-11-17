@@ -229,7 +229,7 @@ describe("M3", function () {
     }
   });
 
-  it("shows a reader toolbar button whose label follows the memo state", async function () {
+  it("shows a 'Claude' toolbar button with the pending count; click opens the chat window", async function () {
     const { item, att } = await paper("Toolbar");
     const ann = await annotate(att, { text: "x", comment: "@claude q" });
     const opened = new Set<string>();
@@ -241,22 +241,20 @@ describe("M3", function () {
           doc.querySelector(".claudeassist-memo-button") as HTMLButtonElement,
         10000,
       );
-      assert.equal(button.textContent, "Claude 메모 1");
+      assert.equal(button.textContent, "Claude · 1");
       assert.isFalse(button.disabled);
 
       ann.annotationComment = "@claude ✓ q";
       await ann.saveTx();
-      await waitFor(() => button.textContent === "Claude 메모", 5000);
-      assert.isTrue(button.disabled, "nothing pending and no Q&A note");
+      await waitFor(() => button.textContent === "Claude", 5000);
+      assert.isFalse(button.disabled, "always opens the chat window");
 
-      await api().qaNote.appendQaEntry(
-        item,
-        "<hr/><p><strong>Q.</strong> q</p><p>a</p><p><em>p.1 · 2026-11-17 16:30 · m · ann:K#1</em></p>",
+      button.click();
+      const win = await waitFor(
+        () => api().chatWindow.findChatWindow(item),
+        10000,
       );
-      ann.annotationComment = "@claude ✓ q\nmore"; // any annotation change refreshes
-      await ann.saveTx();
-      await waitFor(() => button.textContent === "질문 노트", 5000);
-      assert.isFalse(button.disabled);
+      win.close();
     } finally {
       api().annotationContext.closeTabs(opened);
     }

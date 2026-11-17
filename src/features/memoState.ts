@@ -3,8 +3,10 @@
 // observer that refreshes pending counts.
 
 import { errorMessage } from "../llm/claudeCli";
+import { chatSession } from "../chat/chatSession";
 import { paperItem } from "../notes/contextNote";
 import {
+  collectPending,
   isMemoBatchRunning,
   runMemoBatch,
   type MemoBatchResult,
@@ -52,22 +54,55 @@ export function summaryText(st: MemoState): string {
   return `처리 ${r.answered}건, 실패 ${r.failures.length}건${warn}`;
 }
 
-function showSummaryPopup(item: Zotero.Item, st: MemoState) {
+const NOTICE_LINES = 10;
+const shorten = (q: string, n = 60) =>
+  q.length > n ? `${q.slice(0, n - 1)}…` : q;
+
+/** Result lines recorded in the paper's chat (capped). */
+function resultNotice(st: MemoState): string {
   const r = st.result;
-  const lines = [summaryText(st)];
-  for (const f of [...(r?.failures ?? []), ...(r?.warnings ?? [])].slice(
-    0,
-    5,
-  )) {
-    lines.push(`p.${f.pageLabel} “${f.question.slice(0, 40)}” — ${f.reason}`);
+  const lines = [`메모 질문: ${summaryText(st)}`];
+  const items = [
+    ...(r?.failures ?? []).map((f) => ["실패", f] as const),
+    ...(r?.warnings ?? []).map((f) => ["확인 필요", f] as const),
+  ];
+  for (const [kind, f] of items.slice(0, NOTICE_LINES)) {
+    lines.push(
+      `${kind} · p.${f.pageLabel} “${shorten(f.question)}” — ${f.reason}`,
+    );
   }
-  const failed = !!st.error || !!r?.failures.length;
-  new ztoolkit.ProgressWindow("Claude 메모 질문", {
-    closeOnClick: true,
-    closeTime: failed ? 15000 : 6000,
-  })
-    .createLine({ text: lines.join("\n"), type: failed ? "fail" : "success" })
-    .show();
+  if (items.length > NOTICE_LINES)
+    lines.push(`… 외 ${items.length - NOTICE_LINES}건`);
+  if (r?.answered) lines.push("답변은 질문 노트에 기록했습니다.");
+  return lines.join("\n");
+}
+
+/**
+ * Memo status of a paper for every view (toolbar, chat window, sidebar):
+ * running batch progress, or the number of pending questions.
+ */
+export function memoStatus(item: Zotero.Item): {
+  running: boolean;
+  pending: number;
+  /** "2/5" or "…" while running, else "". */
+  progress: string;
+  stage: string;
+  canRun: boolean;
+} {
+  const running = isMemoBatchRunning(item);
+  const st = memoState(item.id);
+  const pending = running ? 0 : collectPending(item).pending.length;
+  return {
+    running,
+    pending,
+    progress: running
+      ? st.total !== undefined
+        ? `${st.done ?? 0}/${st.total}`
+        : "…"
+      : "",
+    stage: st.stage ?? "",
+    canRun: !running && pending > 0 && item.library.editable,
+  };
 }
 
 export async function startMemoBatch(item: Zotero.Item): Promise<void> {
@@ -92,8 +127,14 @@ export async function startMemoBatch(item: Zotero.Item): Promise<void> {
     st.error = errorMessage(e);
   }
   st.stage = undefined;
+  if (st.error || st.result?.total) {
+    try {
+      await chatSession(item).addNotice(resultNotice(st));
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] memo notice failed: ${e}`);
+    }
+  }
   changed(item.id);
-  showSummaryPopup(item, st);
 }
 
 /** Refreshes listeners when annotations of a paper change (pending counts). */

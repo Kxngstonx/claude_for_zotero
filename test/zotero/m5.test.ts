@@ -68,6 +68,44 @@ describe("M5", function () {
     }
   });
 
+  it("opens one chat window per paper with memo and Q&A note buttons", async function () {
+    const { item, att } = await paper("Window");
+    const key = Zotero.DataObjectUtilities.generateKey();
+    await Zotero.Annotations.saveFromJSON(att, {
+      key,
+      type: "highlight",
+      color: "#ffd400",
+      pageLabel: "1",
+      sortIndex: "00000|000001|00000",
+      position: { pageIndex: 0, rects: [[0, 0, 1, 1]] },
+      text: "magic word",
+      comment: "@claude 이 단어는?",
+    });
+    const { chatWindow, qaNote } = api();
+    const win: Window = chatWindow.openChatWindow(item);
+    try {
+      const memo = await waitFor(
+        () => win.document?.getElementById("zca-memo") as HTMLButtonElement,
+        10000,
+      );
+      assert.equal(memo.textContent, "메모 질문 답변 (1)");
+      assert.isFalse(memo.disabled);
+      const qa = win.document.getElementById("zca-qa") as HTMLButtonElement;
+      assert.isTrue(qa.disabled, "no Q&A note yet");
+      assert.exists(win.document.querySelector(".zca-chat textarea"));
+      assert.match(win.document.title, /^Claude — Window/);
+      assert.strictEqual(chatWindow.openChatWindow(item), win, "reused");
+
+      await qaNote.appendQaEntry(
+        item,
+        "<hr/><p><strong>Q.</strong> q</p><p>a</p><p><em>p.1 · 2026-11-17 16:30 · m · ann:K#1</em></p>",
+      );
+      await waitFor(() => !qa.disabled, 5000);
+    } finally {
+      win.close();
+    }
+  });
+
   describe("end to end (ZCA_E2E=1)", function () {
     this.timeout(900000);
     const saved: Record<string, any> = {};
@@ -178,6 +216,44 @@ describe("M5", function () {
       const fresh = await session.load();
       assert.deepEqual(fresh.messages, []);
       assert.isNull(fresh.sessionId);
+    });
+
+    it("answers memo questions from the window button and records a chat notice", async function () {
+      const { item, att } = await paper("Window Memos");
+      const key = Zotero.DataObjectUtilities.generateKey();
+      await Zotero.Annotations.saveFromJSON(att, {
+        key,
+        type: "highlight",
+        color: "#ffd400",
+        pageLabel: "2",
+        sortIndex: "00001|000001|00000",
+        position: { pageIndex: 1, rects: [[0, 0, 1, 1]] },
+        text: "The method section keyword is BANANA.",
+        comment: "@claude 이 문장의 키워드는? 한 단어로.",
+      });
+      const win: Window = api().chatWindow.openChatWindow(item);
+      try {
+        const memo = await waitFor(
+          () => win.document?.getElementById("zca-memo") as HTMLButtonElement,
+          10000,
+        );
+        memo.click();
+        await waitFor(
+          () =>
+            /메모 질문: 처리 1건, 실패 0건/.test(
+              win.document.querySelector(".zca-chat")?.textContent ?? "",
+            ),
+          600000,
+        );
+        assert.equal(memo.textContent, "메모 질문 답변 (0)");
+        assert.isFalse(
+          (win.document.getElementById("zca-qa") as HTMLButtonElement).disabled,
+        );
+        const h = await api().chat.chatSession(item).load();
+        assert.equal(h.messages.at(-1).role, "notice");
+      } finally {
+        win.close();
+      }
     });
 
     it("sends from the UI and saves an answer as a 전역 질문 entry", async function () {

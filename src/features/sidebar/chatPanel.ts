@@ -25,6 +25,8 @@ interface ChatUi {
 const uiState = new Map<number, ChatUi>();
 // Mounted chat containers → paper id.
 const containers = new Map<HTMLElement, number>();
+// Papers whose chat session changes re-render the chat views.
+const watched = new Map<number, () => void>();
 
 /** Markdown → DOM nodes from the parser's element tree (text via textContent). */
 export function markdownNodes(doc: Document, md: string): Node[] {
@@ -113,7 +115,8 @@ async function send(item: Zotero.Item, text: string) {
   if (!q) return;
   if (q === "/memos") {
     setUi(item.id, {
-      status: "메모 질문 처리를 시작했습니다 (툴바 버튼에 진행 상황 표시).",
+      status:
+        "메모 질문 처리를 시작했습니다. 진행 상황은 채팅 창 상단·사이드바에, 결과는 이 대화에 표시됩니다.",
       error: undefined,
     });
     void startMemoBatch(item);
@@ -220,9 +223,20 @@ async function renderMessages(container: HTMLElement, itemID: number) {
 }
 
 /** Mounts (or re-binds) the chat UI in `container` for the paper. */
-export function mountChat(container: HTMLElement, itemID: number) {
+export function mountChat(
+  container: HTMLElement,
+  itemID: number,
+  opts: { fill?: boolean } = {},
+) {
   const item = Zotero.Items.get(itemID);
   if (!item) return;
+  // Re-render on history changes from anywhere (notices, other views).
+  if (!watched.has(itemID)) {
+    watched.set(
+      itemID,
+      chatSession(item).onChange(() => setUi(itemID, {})),
+    );
+  }
   if (Number(container.dataset.zcaPaper) !== itemID) {
     const doc = container.ownerDocument!;
     container.dataset.zcaPaper = String(itemID);
@@ -240,7 +254,8 @@ export function mountChat(container: HTMLElement, itemID: number) {
       doc,
       "div",
       undefined,
-      "display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow-y:auto;user-select:text;-moz-user-select:text;padding:4px 0;",
+      (opts.fill ? "flex:1;min-height:0;" : "max-height:60vh;") +
+        "display:flex;flex-direction:column;gap:8px;overflow-y:auto;user-select:text;-moz-user-select:text;padding:4px 0;",
     );
     const status = el(
       doc,
@@ -304,10 +319,13 @@ export function mountChat(container: HTMLElement, itemID: number) {
       });
     });
   }
+  const bound = containers.get(container) === itemID;
   containers.set(container, itemID);
-  void renderMessages(container, itemID);
+  if (!bound) void renderMessages(container, itemID);
 }
 
 export function unmountChats() {
   containers.clear();
+  for (const off of watched.values()) off();
+  watched.clear();
 }
