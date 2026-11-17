@@ -4,10 +4,12 @@ import * as claude from "./llm/claudeCli";
 import * as gemini from "./llm/gemini";
 import * as prompts from "./prompts";
 import * as paths from "./paths";
+import * as readerText from "./pdf/readerText";
+import * as chars from "./pdf/chars";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
-const api = { claude, gemini, prompts, paths };
+const api = { claude, gemini, prompts, paths, readerText, chars };
 
 class Addon {
   public data: {
