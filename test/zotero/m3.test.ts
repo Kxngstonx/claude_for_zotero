@@ -68,7 +68,7 @@ const silentUI = { stage: () => {}, progress: () => {} };
 describe("M3", function () {
   this.timeout(120000);
 
-  it("collects pending questions in paper order, text kinds only", async function () {
+  it("collects pending questions in paper order (highlight, underline, image)", async function () {
     const { item, att } = await paper("Collect");
     await annotate(att, { text: "B", comment: "@claude second", sort: 20 });
     await annotate(att, {
@@ -94,12 +94,12 @@ describe("M3", function () {
       comment: "@claude sticky",
       sort: 50,
     });
-    const { pending, skippedImages } = api().memoBatch.collectPending(item);
+    const { pending } = api().memoBatch.collectPending(item);
+    // image questions are included since M4; sticky notes are not
     assert.deepEqual(
       pending.map((p: any) => `${p.question}@${p.line}`),
-      ["first@2", "also first@4", "second@1", "third@1"],
+      ["first@2", "also first@4", "second@1", "third@1", "figure?@1"],
     );
-    assert.equal(skippedImages, 1);
   });
 
   it("finds the paragraph around a highlight from reader chars", async function () {

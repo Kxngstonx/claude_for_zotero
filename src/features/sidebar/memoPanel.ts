@@ -52,9 +52,7 @@ function render(body: HTMLElement, itemID: number) {
   const running = isMemoBatchRunning(item);
   const st = memoState(itemID);
   // Scanning annotations is skipped while running (rerenders on every answer).
-  const { pending, skippedImages } = running
-    ? { pending: [], skippedImages: 0 }
-    : collectPending(item);
+  const { pending } = running ? { pending: [] } : collectPending(item);
 
   root.append(
     el(
@@ -62,7 +60,7 @@ function render(body: HTMLElement, itemID: number) {
       "div",
       running
         ? "메모 질문을 처리하는 중입니다."
-        : `대기 중인 메모 질문: ${pending.length}개${skippedImages ? ` (그림 질문 ${skippedImages}개는 아직 지원하지 않음)` : ""}`,
+        : `대기 중인 메모 질문: ${pending.length}개`,
     ),
   );
 

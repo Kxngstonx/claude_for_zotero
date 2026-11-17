@@ -16,6 +16,7 @@ import * as annotationContext from "./pdf/annotationContext";
 import * as noteLock from "./notes/noteLock";
 import * as memoToolbar from "./features/memoToolbar";
 import * as memoState from "./features/memoState";
+import * as annotationImage from "./pdf/annotationImage";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
@@ -36,6 +37,7 @@ const api = {
   noteLock,
   memoToolbar,
   memoState,
+  annotationImage,
 };
 
 class Addon {
