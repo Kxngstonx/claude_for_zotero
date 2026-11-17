@@ -218,6 +218,38 @@ describe("M5", function () {
       assert.isNull(fresh.sessionId);
     });
 
+    it("applies an edited chat prompt from the next message of the same conversation", async function () {
+      const { item } = await paper("Prompt Edit");
+      const { chat, prompts } = api();
+      const session = chat.chatSession(item);
+      await prompts.ensureUserPrompts();
+      const path = PathUtils.join(prompts.userPromptDir(), "sidebar-chat.md");
+      const original = await IOUtils.readUTF8(path);
+      try {
+        const a1 = await session.send("한 단어로 인사하라. 도구는 쓰지 마라.");
+        assert.notInclude(a1.text, "ZEBRA-MARK");
+        const sid = (await session.load()).sessionId;
+        await IOUtils.writeUTF8(
+          path,
+          original +
+            "\n\n## Test rule\n* End every answer with the exact token ZEBRA-MARK on its own line.\n",
+        );
+        const a2 = await session.send(
+          "한 단어로 다시 인사하라. 도구는 쓰지 마라.",
+        );
+        Zotero.debug(`[zca test] prompt edit a2=${a2.text}`);
+        assert.include(a2.text, "ZEBRA-MARK");
+        assert.equal(
+          (await session.load()).sessionId,
+          sid,
+          "same conversation",
+        );
+      } finally {
+        await IOUtils.writeUTF8(path, original);
+        await session.reset();
+      }
+    });
+
     it("answers memo questions from the window button and records a chat notice", async function () {
       const { item, att } = await paper("Window Memos");
       const key = Zotero.DataObjectUtilities.generateKey();
@@ -273,7 +305,7 @@ describe("M5", function () {
           (b) => b.textContent === "보내기",
         ) as HTMLButtonElement;
         input.value =
-          "섹션 3 Experiments의 키워드는? 섹션 파일을 읽고 키워드만 답하라.";
+          "섹션 3 Experiments 파일을 읽고, 그 안에서 'Keyword' 바로 다음에 나오는 대문자 단어만 답하라.";
         sendBtn.click();
         const save = await waitFor(
           () =>
@@ -294,7 +326,7 @@ describe("M5", function () {
         const note = api().qaNote.findQaNote(item);
         const html: string = note.getNote();
         assert.include(html, "<strong>전역 질문</strong>");
-        assert.include(html, "섹션 3 Experiments의 키워드는?");
+        assert.include(html, "섹션 3 Experiments 파일을 읽고");
         assert.include(html, "DURIAN");
         assert.match(
           html,

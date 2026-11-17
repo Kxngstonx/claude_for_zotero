@@ -51,3 +51,21 @@ test("responseText joins candidate parts and rejects empty output", () => {
     /SAFETY/,
   );
 });
+
+import { geminiErrorMessage } from "../../src/llm/geminiApi.ts";
+
+test("geminiErrorMessage points to the setting to fix", () => {
+  assert.match(
+    geminiErrorMessage(new GeminiError("no_key", "")),
+    /API 키를 입력/,
+  );
+  assert.match(
+    geminiErrorMessage(new GeminiError("http", "not found", 404)),
+    /모델 ID를 찾을 수 없습니다/,
+  );
+  assert.match(geminiErrorMessage(new GeminiError("http", "", 0)), /네트워크/);
+  assert.match(
+    geminiErrorMessage(new GeminiError("rate_limit", "quota", 429)),
+    /속도 제한/,
+  );
+});

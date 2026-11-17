@@ -157,3 +157,40 @@ export function userMessage(content: unknown[]): string {
     JSON.stringify({ type: "user", message: { role: "user", content } }) + "\n"
   );
 }
+
+/**
+ * User-facing text for a Claude error: what happened and what to do
+ * (M6). The CLI's own message is kept at the end for details.
+ */
+export function claudeErrorText(
+  kind: ClaudeErrorKind,
+  message: string,
+): string {
+  const detail = message.trim();
+  const tail = detail ? `\n(${detail})` : "";
+  switch (kind) {
+    case "not_found":
+      return `claude CLI를 찾지 못했습니다. 설정 › Claude Assist에서 claude 경로를 입력하세요 (터미널에서 \`which claude\`로 위치 확인).${
+        detail && !detail.startsWith("claude CLI를 찾지 못했습니다") ? tail : ""
+      }`;
+    case "auth":
+      return `Claude 로그인이 필요합니다. 터미널에서 \`claude\`를 실행해 /login 한 뒤 다시 시도하세요.${tail}`;
+    case "limit": {
+      const reset = resetTime(detail);
+      return `Claude 사용량 한도에 도달했습니다.${reset ? ` ${reset} 이후` : " 잠시 후"} 다시 시도하세요. 한도는 다른 Claude Code 작업과 함께 쓰입니다.${tail}`;
+    }
+    case "model":
+      return `설정한 모델을 사용할 수 없습니다. 설정 › Claude Assist의 모델 이름을 확인하세요 ("Claude CLI 연결 테스트"로 사용 가능한 목록을 볼 수 있습니다).${tail}`;
+    case "timeout":
+      return `${detail || "시간 안에 끝나지 않았습니다."} (메모 질문·컨텍스트 노트의 타임아웃은 설정 › Claude Assist에서 바꿀 수 있습니다.)`;
+    default:
+      return `Claude 실행 중 오류가 났습니다: ${detail || "(메시지 없음)"}`;
+  }
+}
+
+/** "3:45pm", "3pm (Asia/Seoul)", "Nov. 20" from "… · resets <time> · …". */
+export function resetTime(message: string): string | null {
+  const m = message.match(/resets?\s+([^\n·∙•|]+)/i);
+  const t = m?.[1]?.trim().replace(/[.,;:]+$/, "");
+  return t || null;
+}

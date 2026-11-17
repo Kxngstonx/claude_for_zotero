@@ -12,6 +12,7 @@ import {
 import { geminiTest } from "../llm/gemini";
 import { geminiErrorMessage } from "../llm/geminiApi";
 import { ensureUserPrompts, userPromptDir } from "../prompts";
+import { logDir } from "../log";
 
 export function registerPrefsPane() {
   Zotero.PreferencePanes.register({
@@ -65,6 +66,7 @@ export function onPrefsPaneLoad(win: Window) {
         `짧은 호출 실행 중 (모델 ${model})… 처음이면 macOS 키체인 허용 창이 뜰 수 있습니다.`,
       );
       const res = await runOnce({
+        feature: "connection-test",
         systemPrompt:
           "You are a connection test. Reply with exactly the single word: PONG",
         content: [{ type: "text", text: "ping" }],
@@ -94,6 +96,10 @@ export function onPrefsPaneLoad(win: Window) {
   };
   show("prompts-current", `현재 위치: ${userPromptDir()}`);
   $("prompts-dir")?.addEventListener("change", syncPromptDir);
+  $("log-open")?.addEventListener("command", async () => {
+    await IOUtils.makeDirectory(logDir(), { createAncestors: true });
+    Zotero.File.reveal(logDir());
+  });
   $("prompts-open")?.addEventListener("command", async () => {
     await syncPromptDir();
     Zotero.File.reveal(userPromptDir());

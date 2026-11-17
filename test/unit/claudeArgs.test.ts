@@ -101,6 +101,7 @@ test("chatArgs confines Read to the working directory and resumes", () => {
   assert.ok(a.includes("--restricted"));
   assert.ok(a.includes("--include-partial-messages"));
   assert.equal(after("--permission-mode"), "dontAsk");
+  assert.equal(after("--system-prompt-snapshot"), "off");
   assert.equal(
     a.includes("--no-session-persistence"),
     false,

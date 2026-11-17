@@ -20,7 +20,7 @@ export function generateBody(system: string, user: string, temperature = 0.2) {
 }
 
 export type GeminiErrorKind =
-  "no_key" | "rate_limit" | "auth" | "http" | "empty";
+  "timeout" | "no_key" | "rate_limit" | "auth" | "http" | "empty";
 
 export class GeminiError extends Error {
   kind: GeminiErrorKind;
@@ -73,15 +73,23 @@ export function geminiErrorMessage(e: unknown): string {
   if (e instanceof GeminiError) {
     switch (e.kind) {
       case "no_key":
-        return "Gemini API 키가 없습니다. 설정에서 입력하세요.";
+        return "Gemini API 키가 없습니다. 설정 › Claude Assist에 AI Studio API 키를 입력하세요.";
+      case "timeout":
+        return "Gemini 응답이 60초 안에 오지 않았습니다. 잠시 후 다시 시도하세요.";
       case "rate_limit":
-        return "무료 티어 속도 제한입니다. 잠시 후 다시 시도하세요.";
+        return "Gemini 무료 티어 속도 제한입니다. 잠시 후 다시 시도하세요.";
       case "auth":
-        return `API 키 오류: ${e.message}`;
+        return `Gemini API 키가 올바르지 않습니다. 설정에서 AI Studio 키를 확인하세요. (${e.message})`;
       case "empty":
-        return e.message;
+        return `Gemini가 번역을 돌려주지 않았습니다: ${e.message}`;
       default:
-        return `HTTP ${e.status}: ${e.message}`;
+        if (e.status === 404) {
+          return `Gemini 모델 ID를 찾을 수 없습니다. 설정의 모델 ID를 확인하세요 ("Gemini 연결 테스트"). (${e.message})`;
+        }
+        if (e.status === 0) {
+          return `Gemini에 연결하지 못했습니다. 네트워크 연결을 확인하세요. (${e.message})`;
+        }
+        return `Gemini 오류 (HTTP ${e.status}): ${e.message}`;
     }
   }
   return String(e);

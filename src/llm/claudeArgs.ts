@@ -166,6 +166,11 @@ export function chatArgs(o: ChatArgs): string[] {
     "Read(./**)",
     "--system-prompt-file",
     o.systemPromptFile,
+    // The CLI records the system prompt per conversation by default and
+    // reuses it on resume; off makes an edited prompt file apply to the
+    // resumed conversation too (M6).
+    "--system-prompt-snapshot",
+    "off",
     "--model",
     o.model,
   ];
