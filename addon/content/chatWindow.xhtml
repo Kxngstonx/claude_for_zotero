@@ -1,20 +1,55 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Claude chat window for one paper. Content is built by the plugin
-     (src/features/chatWindow.ts) after load; this file only sets up layout. -->
+     (src/features/chatWindow.ts) after load; this file sets up layout and the
+     Zotero theme variables used by chat.css (values from Zotero 10, macOS). -->
 <html xmlns="http://www.w3.org/1999/xhtml" windowtype="claudeassist:chat">
   <head>
     <meta charset="utf-8" />
     <title>Claude</title>
+    <link id="zca-chat-css" rel="stylesheet" href="chat.css" />
     <style>
       :root {
         color-scheme: light dark;
+        --material-background: #fff;
+        --material-sidepane: #f2f2f2;
+        --material-toolbar: #f9f9f9;
+        --material-button: #fff;
+        --fill-primary: rgba(0, 0, 0, 0.85);
+        --fill-secondary: rgba(0, 0, 0, 0.55);
+        --fill-tertiary: rgba(0, 0, 0, 0.25);
+        --fill-quarternary: rgba(0, 0, 0, 0.1);
+        --fill-quinary: rgba(0, 0, 0, 0.05);
+        --accent-blue: #4072e5;
+        --accent-blue10: rgba(64, 114, 229, 0.1);
+        --accent-blue30: rgba(64, 114, 229, 0.3);
+        --accent-green: #2e9d55;
+        --accent-orange: #ff794c;
+        --accent-red: #db2c3a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --material-background: #1e1e1e;
+          --material-sidepane: #303030;
+          --material-toolbar: #272727;
+          --material-button: #404040;
+          --fill-primary: rgba(255, 255, 255, 0.9);
+          --fill-secondary: rgba(255, 255, 255, 0.55);
+          --fill-tertiary: rgba(255, 255, 255, 0.3);
+          --fill-quarternary: rgba(255, 255, 255, 0.12);
+          --fill-quinary: rgba(255, 255, 255, 0.06);
+          --accent-blue10: rgba(64, 114, 229, 0.3);
+          --accent-blue30: rgba(64, 114, 229, 0.45);
+          --accent-green: rgba(57, 191, 104, 0.85);
+          --accent-orange: rgba(255, 121, 76, 0.85);
+          --accent-red: rgba(219, 44, 58, 0.9);
+        }
       }
       html,
       body {
         height: 100%;
         margin: 0;
-        background: Canvas;
-        color: CanvasText;
+        background: var(--material-background);
+        color: var(--fill-primary);
         font: menu;
         font-size: 14px;
       }
@@ -23,15 +58,57 @@
         height: 100%;
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        padding: 10px 12px;
       }
-      #root .zca-chat {
-        flex: 1;
-        min-height: 0;
+      .zca-whead {
+        padding: 14px 16px 10px;
+        background: var(--material-toolbar);
+        border-bottom: 1px solid var(--fill-quinary);
+      }
+      .zca-wtitle {
+        font-size: 1.2em;
+        font-weight: 700;
+        line-height: 1.3;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+      }
+      .zca-wsub {
         display: flex;
-        flex-direction: column;
+        align-items: center;
         gap: 6px;
+        margin-top: 4px;
+        font-size: 0.88em;
+        color: var(--fill-secondary);
+      }
+      .zca-wmemo {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 16px;
+        border-bottom: 1px solid var(--fill-quinary);
+        font-size: 0.9em;
+      }
+      #zca-memo-status {
+        flex: 1;
+        min-width: 0;
+        white-space: pre-wrap;
+        color: var(--fill-secondary);
+      }
+      #zca-memo-status[data-tone="ok"] {
+        color: var(--accent-green);
+      }
+      #zca-memo-status[data-tone="run"] {
+        color: var(--accent-blue);
+      }
+      #zca-memo-status[data-tone="warn"] {
+        color: var(--accent-orange);
+      }
+      #zca-memo-status[data-tone="err"] {
+        color: var(--accent-red);
+      }
+      .zca-wchat {
+        padding: 0 16px 12px;
       }
       button {
         font: inherit;

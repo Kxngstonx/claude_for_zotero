@@ -133,11 +133,11 @@ export function registerMemoPanel() {
     pluginID: addon.data.config.addonID,
     header: {
       l10nID: getLocaleID("section-memo-head"),
-      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon@0.5x.png`,
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
     },
     sidenav: {
       l10nID: getLocaleID("section-memo-sidenav"),
-      icon: `chrome://${addon.data.config.addonRef}/content/icons/favicon@0.5x.png`,
+      icon: `chrome://${addon.data.config.addonRef}/content/icons/icon.svg`,
     },
     onItemChange: ({ item, tabType, setEnabled }) => {
       setEnabled(tabType === "reader" && !!item && !!paperItem(item));

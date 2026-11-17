@@ -63,6 +63,25 @@ describe("M5", function () {
       assert.isNull(holder.querySelector("a"));
       assert.include(holder.textContent, "<script>alert(1)</script>");
       assert.equal(holder.querySelector("strong")?.textContent, "굵게");
+
+      // Location tags become marks; page marks are clickable, code is left alone.
+      const cited = doc.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      cited.append(
+        ...api().chatPanel.markdownNodes(
+          doc,
+          "A [Sec 3, p.4] B [Interpretation] `[p.9]`",
+          () => {},
+        ),
+      );
+      const marks = [...cited.querySelectorAll(".zca-cite")] as HTMLElement[];
+      assert.deepEqual(
+        marks.map((m) => [m.textContent, m.dataset.page ?? null]),
+        [
+          ["p.4", "4"],
+          ["해석", null],
+        ],
+      );
+      assert.include(cited.querySelector("code")?.textContent, "[p.9]");
     } finally {
       container.remove();
     }
@@ -88,10 +107,27 @@ describe("M5", function () {
         () => win.document?.getElementById("zca-memo") as HTMLButtonElement,
         10000,
       );
-      assert.equal(memo.textContent, "메모 질문 답변 (1)");
+      assert.equal(memo.textContent, "답변 생성");
       assert.isFalse(memo.disabled);
+      assert.include(
+        win.document.querySelector(".zca-pending")?.textContent,
+        "메모 질문 1개 대기 · p.1",
+      );
       const qa = win.document.getElementById("zca-qa") as HTMLButtonElement;
       assert.isTrue(qa.disabled, "no Q&A note yet");
+      const ctx = win.document.getElementById(
+        "zca-context",
+      ) as HTMLButtonElement;
+      assert.isTrue(ctx.disabled, "no context note yet");
+      assert.match(
+        win.document.querySelector(".zca-wtitle")?.textContent ?? "",
+        /^Window/,
+      );
+      await waitFor(
+        () =>
+          win.document.getElementById("zca-model")?.textContent === "Sonnet",
+        5000,
+      );
       assert.exists(win.document.querySelector(".zca-chat textarea"));
       assert.match(win.document.title, /^Claude — Window/);
       assert.strictEqual(chatWindow.openChatWindow(item), win, "reused");
@@ -277,7 +313,15 @@ describe("M5", function () {
             ),
           600000,
         );
-        assert.equal(memo.textContent, "메모 질문 답변 (0)");
+        assert.isTrue(memo.disabled);
+        assert.include(
+          win.document.querySelector(".zca-pending")?.textContent,
+          "대기 중인 메모 질문 없음",
+        );
+        assert.include(
+          win.document.getElementById("zca-memo-status")?.textContent,
+          "메모 질문 1개에 답했습니다",
+        );
         assert.isFalse(
           (win.document.getElementById("zca-qa") as HTMLButtonElement).disabled,
         );
@@ -301,8 +345,8 @@ describe("M5", function () {
         const input = container.querySelector(
           "textarea",
         ) as HTMLTextAreaElement;
-        const sendBtn = [...container.querySelectorAll("button")].find(
-          (b) => b.textContent === "보내기",
+        const sendBtn = container.querySelector(
+          ".zca-send",
         ) as HTMLButtonElement;
         input.value =
           "섹션 3 Experiments 파일을 읽고, 그 안에서 'Keyword' 바로 다음에 나오는 대문자 단어만 답하라.";
@@ -318,9 +362,8 @@ describe("M5", function () {
         save.click();
         await waitFor(
           () =>
-            [...container.querySelectorAll("button")].some(
-              (b) => b.textContent === "질문 노트에 저장됨",
-            ),
+            container.querySelector(".zca-saved")?.textContent ===
+            "✓ 질문 노트에 저장됨",
           20000,
         );
         const note = api().qaNote.findQaNote(item);
