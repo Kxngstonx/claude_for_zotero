@@ -1,4 +1,6 @@
-<!-- prompt-version: memo-batch v1. 실행 시 이 파일 뒤에 humanize-digest.md가 붙는다. -->
+<!-- prompt-version: memo-batch v1.2. 실행 시 이 파일 뒤에 humanize-digest.md가 붙는다.
+     v1.1: JSON 이스케이프를 한 번만 하라는 규칙을 명확히 함 (이중 이스케이프로 수식·줄바꿈이 깨지는 문제).
+     v1.2: 하이라이트에 수식이 있으면 답변 첫머리에 LaTeX로 복원해 보여준다 (인용은 PDF 추출 텍스트라 렌더링되지 않음). -->
 
 # Zotero Memo Questions — Batch Answering
 
@@ -18,6 +20,12 @@ You do not have the full paper. For each question, treat its `<highlight>`, `<su
 
 ## How to answer each question
 
+0. **If `<highlight>` contains a mathematical expression** (an equation, a formula, or symbols with sub/superscripts), the user sees it only as flattened PDF-extraction text such as `φGMF = pG u qG i`. Begin the answer with that expression reconstructed in LaTeX as a display block, then one short line saying it was reconstructed, then the answer:
+   * Reconstruct only what is in the highlight, in the same order, keeping the paper's equation number (e.g., `\tag{12}`). Use `<surrounding>` and the Key Equations in `<context_note>` to resolve flattened sub/superscripts.
+   * Put each equation of the highlight on its own `$$…$$` line.
+   * The line after the block is: `(하이라이트 수식을 추출 텍스트에서 복원 [Eq. N, p.M])`, or `(… 복원 [p.M])` without a number.
+   * If part of it cannot be reconstructed reliably, reconstruct the rest and write `[복원 불확실: …]` for that part instead of guessing.
+   * Skip this step when the highlight has no math or only a trivial inline symbol (e.g., "the parameter K").
 1. **Start with the direct answer in 1–2 sentences.**
 2. Then add only the explanation that question needs: connect the passage or figure to the paper's problem, idea, method, or experiments as relevant.
 3. **Ground every claim about the paper.** Reuse location tags from the context note, or cite the question's page ([p.N]) for the passage itself. Mark your own explanation, analogy, or inference as [Interpretation].
@@ -46,4 +54,8 @@ Output JSON Lines: one line per question, each line a complete JSON object, and 
 
 * One line per question, in the order the questions were given, using exactly the given ids. Do not add or drop ids.
 * Finish each line completely before starting the next one. Each line is parsed and saved as soon as it ends, so a complete line is never lost even if a later one fails.
-* Each line must be a single physical line. Inside the answer string, escape newlines as `\n`, quotes as `\"`, and backslashes as `\\` (so `\mathbf` becomes `\\mathbf`).
+* Each line must be a single physical line, encoded with standard JSON string escaping **applied exactly once**:
+  * a line break inside the answer is the two characters `\n` (never `\\n`),
+  * a double quote is `\"`,
+  * a LaTeX backslash is written as two backslashes, e.g. the raw line contains `\\mathbf` and decodes back to `\mathbf` (never four backslashes).
+  * Example of one correct raw line: `{"id": "q1", "answer": "첫 문장이다.\n\n수식 $\\mathbf{p}_u \\odot \\mathbf{q}_i$를 쓴다."}`

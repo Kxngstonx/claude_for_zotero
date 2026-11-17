@@ -26,4 +26,6 @@ export type FluentMessageId =
   | 'pref-timeout-memo'
   | 'pref-timeout-note'
   | 'pref-translate-sentences'
-  | 'prefs-title';
+  | 'prefs-title'
+  | 'section-memo-head'
+  | 'section-memo-sidenav';

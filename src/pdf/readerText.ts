@@ -19,12 +19,12 @@ import {
 
 type View = any;
 
-function views(reader: any): View[] {
+export function views(reader: any): View[] {
   const r = reader?._internalReader;
   return [r?._primaryView, r?._secondaryView].filter(Boolean);
 }
 
-async function pageChars(
+export async function pageChars(
   view: View,
   pageIndex: number,
 ): Promise<PdfChar[] | null> {

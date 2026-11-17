@@ -9,6 +9,13 @@ import * as chars from "./pdf/chars";
 import * as fullText from "./pdf/fullText";
 import * as contextNote from "./notes/contextNote";
 import * as noteHtml from "./notes/noteHtml";
+import * as qaNote from "./notes/qaNote";
+import * as noteText from "./notes/noteText";
+import * as memoBatch from "./features/memoBatch";
+import * as annotationContext from "./pdf/annotationContext";
+import * as noteLock from "./notes/noteLock";
+import * as memoToolbar from "./features/memoToolbar";
+import * as memoState from "./features/memoState";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
@@ -22,6 +29,13 @@ const api = {
   fullText,
   contextNote,
   noteHtml,
+  qaNote,
+  noteText,
+  memoBatch,
+  annotationContext,
+  noteLock,
+  memoToolbar,
+  memoState,
 };
 
 class Addon {

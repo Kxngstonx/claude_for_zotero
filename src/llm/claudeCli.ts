@@ -177,6 +177,10 @@ export interface RunOnceOptions {
   timeoutSec: number;
   /** Called with each streamed text chunk. */
   onText?: (delta: string) => void;
+  /** Called once with the resolved model id (from system/init). */
+  onModel?: (model: string) => void;
+  /** Called after the process starts with a function that kills it. */
+  onStart?: (kill: () => void) => void;
 }
 
 export interface RunOnceResult {
@@ -214,10 +218,17 @@ export function runOnce(o: RunOnceOptions): Promise<RunOnceResult> {
       proc.kill();
     }, o.timeoutSec * 1000);
 
+    o.onStart?.(() => proc.kill());
+
     const turn = new TurnCollector();
     const lines = new LineBuffer();
+    let modelReported = false;
     const handle = (line: string) => {
       const d = turn.add(parseJsonLine(line));
+      if (!modelReported && turn.model) {
+        modelReported = true;
+        o.onModel?.(turn.model);
+      }
       if (d && o.onText) o.onText(d);
     };
     try {
