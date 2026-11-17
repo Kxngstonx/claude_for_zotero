@@ -1,33 +1,195 @@
 <linkset>
   <html:link rel="localization" href="__addonRef__-preferences.ftl" />
 </linkset>
-<groupbox
+<vbox
+  id="zotero-prefpane-__addonRef__"
   onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
 >
-  <label><html:h2 data-l10n-id="pref-title"></html:h2></label>
-  <checkbox
-    id="zotero-prefpane-__addonRef__-enable"
-    preference="enable"
-    data-l10n-id="pref-enable"
-  />
-  <hbox>
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-gemini-title"></html:h2></label>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-gemini-key"
+        data-l10n-id="pref-gemini-key"
+      ></html:label>
+      <html:input
+        type="password"
+        id="__addonRef__-gemini-key"
+        preference="gemini.apiKey"
+        size="40"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-gemini-model"
+        data-l10n-id="pref-gemini-model"
+      ></html:label>
+      <html:input
+        type="text"
+        id="__addonRef__-gemini-model"
+        preference="gemini.model"
+        size="30"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-ctx-sent"
+        data-l10n-id="pref-translate-sentences"
+      ></html:label>
+      <html:input
+        type="number"
+        min="0"
+        max="10"
+        id="__addonRef__-ctx-sent"
+        preference="translate.contextSentences"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <button id="__addonRef__-gemini-test" data-l10n-id="pref-gemini-test" />
+    </hbox>
+    <html:pre
+      id="__addonRef__-gemini-result"
+      class="__addonRef__-result"
+    ></html:pre>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-claude-title"></html:h2></label>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-claude-path"
+        data-l10n-id="pref-claude-path"
+      ></html:label>
+      <html:input
+        type="text"
+        id="__addonRef__-claude-path"
+        preference="claude.path"
+        size="40"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-model-note"
+        data-l10n-id="pref-claude-model-note"
+      ></html:label>
+      <html:input
+        type="text"
+        id="__addonRef__-model-note"
+        preference="claude.modelNote"
+        size="20"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-model-answer"
+        data-l10n-id="pref-claude-model-answer"
+      ></html:label>
+      <html:input
+        type="text"
+        id="__addonRef__-model-answer"
+        preference="claude.modelAnswer"
+        size="20"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <button id="__addonRef__-claude-test" data-l10n-id="pref-claude-test" />
+    </hbox>
+    <html:pre
+      id="__addonRef__-claude-result"
+      class="__addonRef__-result"
+    ></html:pre>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-memo-title"></html:h2></label>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-memo-max-q"></html:label>
+      <html:input
+        type="number"
+        min="1"
+        preference="memo.maxQuestionsPerCall"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-memo-max-img"></html:label>
+      <html:input
+        type="number"
+        min="0"
+        preference="memo.maxImagesPerCall"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-memo-paragraphs"></html:label>
+      <html:input
+        type="number"
+        min="0"
+        max="5"
+        preference="memo.surroundingParagraphs"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-qa-chars"></html:label>
+      <html:input
+        type="number"
+        min="0"
+        preference="qa.previousQaChars"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-timeout-memo"></html:label>
+      <html:input
+        type="number"
+        min="10"
+        preference="timeout.memoBaseSec"
+      ></html:input>
+      <html:input
+        type="number"
+        min="0"
+        preference="timeout.memoPerQuestionSec"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-timeout-note"></html:label>
+      <html:input
+        type="number"
+        min="60"
+        preference="timeout.noteSec"
+      ></html:input>
+    </hbox>
+    <hbox align="center">
+      <html:label data-l10n-id="pref-chat-idle"></html:label>
+      <html:input
+        type="number"
+        min="1"
+        preference="chat.idleMinutes"
+      ></html:input>
+    </hbox>
+  </groupbox>
+
+  <groupbox>
+    <label><html:h2 data-l10n-id="pref-prompts-title"></html:h2></label>
+    <hbox align="center">
+      <html:label
+        for="__addonRef__-prompts-dir"
+        data-l10n-id="pref-prompts-dir"
+      ></html:label>
+      <html:input
+        type="text"
+        id="__addonRef__-prompts-dir"
+        preference="prompts.dir"
+        size="40"
+      ></html:input>
+    </hbox>
+    <html:div id="__addonRef__-prompts-current"></html:div>
+    <hbox>
+      <button id="__addonRef__-prompts-open" data-l10n-id="pref-prompts-open" />
+    </hbox>
+  </groupbox>
+
+  <vbox>
     <html:label
-      for="zotero-prefpane-__addonRef__-input"
-      data-l10n-id="pref-input"
+      data-l10n-id="pref-help"
+      data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
     ></html:label>
-    <html:input
-      type="text"
-      id="zotero-prefpane-__addonRef__-input"
-      preference="input"
-    ></html:input>
-  </hbox>
-  <hbox class="virtualized-table-container" flex="1" height="300px">
-    <html:div id="__addonRef__-table-container" />
-  </hbox>
-</groupbox>
-<vbox>
-  <html:label
-    data-l10n-id="pref-help"
-    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
-  ></html:label>
+  </vbox>
 </vbox>
