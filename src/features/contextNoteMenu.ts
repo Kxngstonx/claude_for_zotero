@@ -83,7 +83,10 @@ export function registerContextNoteMenu() {
           ctx.setVisible(!!paper);
           if (!paper) return;
           ctx.setEnabled(paper.library.editable && !isGenerating(paper));
-          ctx.setL10nArgs({ exists: findContextNote(paper) ? "yes" : "no" });
+          // MenuManager writes this straight into data-l10n-args: a JSON string
+          ctx.setL10nArgs(
+            JSON.stringify({ exists: findContextNote(paper) ? "yes" : "no" }),
+          );
         },
         onCommand: (_event: Event, ctx: any) => {
           const items: Zotero.Item[] = ctx.items || [];

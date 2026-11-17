@@ -2,7 +2,7 @@
 // and (with ZCA_E2E=1) a real end-to-end generation with a small model.
 import { assert } from "chai";
 import { config } from "../../package.json";
-import { api, importSentencesPdf } from "./fixtures";
+import { api, importSentencesPdf, waitFor } from "./fixtures";
 
 async function paperWithPdf(title: string) {
   const item = new Zotero.Item("journalArticle");
@@ -58,6 +58,58 @@ describe("M2", function () {
     assert.equal(api().contextNote.findContextNote(item).id, newer.id);
   });
 
+  it("menu label switches to 재생성 when a context note exists", async function () {
+    const { item } = await paperWithPdf("Menu label");
+    const win = Zotero.getMainWindow();
+    const zp = win.ZoteroPane;
+    const popup = win.document.getElementById("zotero-itemmenu") as any;
+    const labelFor = async () => {
+      await zp.selectItem(item.id);
+      // as ZoteroPane.onItemsContextMenuOpen does: build, then open
+      await zp.buildItemContextMenu();
+      const shown = new Promise((r) =>
+        popup.addEventListener("popupshown", r, { once: true }),
+      );
+      popup.openPopupAtScreen(100, 100, true);
+      await shown;
+      const el = await waitFor(
+        () =>
+          popup.querySelector(
+            `[data-l10n-id="${config.addonRef}-menu-context-note"]`,
+          ),
+        5000,
+      );
+      assert.exists(el, "menu item present");
+      await win.document.l10n.translateFragment(el);
+      const label = el.getAttribute("label");
+      const hidden = popup.hidePopup();
+      await hidden;
+      return label;
+    };
+    assert.equal(await labelFor(), "Claude 컨텍스트 노트 생성");
+    await taggedNote(item, "existing");
+    assert.equal(await labelFor(), "Claude 컨텍스트 노트 재생성");
+  });
+
+  it("build-time prompt hashes match Zotero's md5", async function () {
+    const { prompts } = api();
+    const r = await prompts.ensureUserPrompts();
+    assert.deepEqual(r.updated, [], "fresh profile: nothing to update");
+    const known = JSON.parse(
+      Zotero.File.getContentsFromURL(
+        `chrome://${config.addonRef}/content/prompts/known-defaults.json`,
+      ),
+    );
+    for (const name of prompts.PROMPT_FILES) {
+      const text = await prompts.loadPrompt(name);
+      assert.include(
+        known[name],
+        Zotero.Utilities.Internal.md5(text, false),
+        name,
+      );
+    }
+  });
+
   describe("end to end (ZCA_E2E=1)", function () {
     this.timeout(600000);
     let saved: any;
@@ -92,7 +144,7 @@ describe("M2", function () {
       assert.equal(note.parentID, item.id);
       assert.match(
         html,
-        /^<div data-schema-version="9"><h1>Claude 컨텍스트 노트 — FedVal: Data Valuation for FL<\/h1><p>생성: claude-haiku[^<]* · 프롬프트 context-note v1 · 본문 1쪽/,
+        /^<div data-schema-version="9"><h1>Claude 컨텍스트 노트 — FedVal: Data Valuation for FL<\/h1><p>생성: claude-haiku[^<]* · 프롬프트 context-note v1\.1 · 본문 1쪽/,
       );
       assert.match(html, /p\.\s?1/, "location tags carry the page");
       assert.notInclude(html, "<script");
