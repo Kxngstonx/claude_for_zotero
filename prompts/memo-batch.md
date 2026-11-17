@@ -1,4 +1,5 @@
-<!-- prompt-version: memo-batch v1. 실행 시 이 파일 뒤에 humanize-digest.md가 붙는다. -->
+<!-- prompt-version: memo-batch v1.1. 실행 시 이 파일 뒤에 humanize-digest.md가 붙는다.
+     v1.1: JSON 이스케이프를 한 번만 하라는 규칙을 명확히 함 (이중 이스케이프로 수식·줄바꿈이 깨지는 문제). -->
 
 # Zotero Memo Questions — Batch Answering
 
@@ -46,4 +47,8 @@ Output JSON Lines: one line per question, each line a complete JSON object, and 
 
 * One line per question, in the order the questions were given, using exactly the given ids. Do not add or drop ids.
 * Finish each line completely before starting the next one. Each line is parsed and saved as soon as it ends, so a complete line is never lost even if a later one fails.
-* Each line must be a single physical line. Inside the answer string, escape newlines as `\n`, quotes as `\"`, and backslashes as `\\` (so `\mathbf` becomes `\\mathbf`).
+* Each line must be a single physical line, encoded with standard JSON string escaping **applied exactly once**:
+  * a line break inside the answer is the two characters `\n` (never `\\n`),
+  * a double quote is `\"`,
+  * a LaTeX backslash is written as two backslashes, e.g. the raw line contains `\\mathbf` and decodes back to `\mathbf` (never four backslashes).
+  * Example of one correct raw line: `{"id": "q1", "answer": "첫 문장이다.\n\n수식 $\\mathbf{p}_u \\odot \\mathbf{q}_i$를 쓴다."}`

@@ -2,30 +2,20 @@
 // question button, progress, result summary, link to the Q&A note.
 
 import { getLocaleID } from "../../utils/locale";
-import { errorMessage } from "../../llm/claudeCli";
 import { paperItem } from "../../notes/contextNote";
+import { collectPending, isMemoBatchRunning } from "../memoBatch";
 import {
-  collectPending,
-  isMemoBatchRunning,
-  runMemoBatch,
-  type MemoBatchResult,
-} from "../memoBatch";
+  memoState,
+  onMemoStateChange,
+  startMemoBatch,
+  summaryText,
+} from "../memoState";
 
 const HTML = "http://www.w3.org/1999/xhtml";
 
-interface PanelState {
-  stage?: string;
-  done?: number;
-  total?: number;
-  result?: MemoBatchResult;
-  error?: string;
-}
-
-// State per paper (item id), shared by every mounted panel showing it.
-const states = new Map<number, PanelState>();
 // Mounted panel bodies → the paper they show.
 const mounted = new Map<HTMLElement, number>();
-let observerID: string | null = null;
+let unsubscribe: (() => void) | null = null;
 
 function el<K extends keyof HTMLElementTagNameMap>(
   doc: Document,
@@ -46,31 +36,6 @@ function rerender(itemID: number) {
   }
 }
 
-async function start(item: Zotero.Item) {
-  // A stale panel (e.g. in another window) must not reset a running batch.
-  if (isMemoBatchRunning(item)) return;
-  states.set(item.id, { stage: "시작하는 중…" });
-  rerender(item.id);
-  const st = states.get(item.id)!;
-  try {
-    st.result = await runMemoBatch(item, {
-      stage: (s) => {
-        st.stage = s;
-        rerender(item.id);
-      },
-      progress: (done, total) => {
-        st.done = done;
-        st.total = total;
-        rerender(item.id);
-      },
-    });
-  } catch (e) {
-    st.error = errorMessage(e);
-  }
-  st.stage = undefined;
-  rerender(item.id);
-}
-
 function render(body: HTMLElement, itemID: number) {
   const doc = body.ownerDocument!;
   const item = Zotero.Items.get(itemID);
@@ -85,7 +50,7 @@ function render(body: HTMLElement, itemID: number) {
   body.append(root);
 
   const running = isMemoBatchRunning(item);
-  const st = states.get(itemID) ?? {};
+  const st = memoState(itemID);
   // Scanning annotations is skipped while running (rerenders on every answer).
   const { pending, skippedImages } = running
     ? { pending: [], skippedImages: 0 }
@@ -103,7 +68,7 @@ function render(body: HTMLElement, itemID: number) {
 
   const button = el(doc, "button", "메모 질문 답변");
   button.disabled = running || pending.length === 0 || !item.library.editable;
-  button.addEventListener("click", () => void start(item));
+  button.addEventListener("click", () => void startMemoBatch(item));
   root.append(button);
 
   if (running) {
@@ -115,27 +80,19 @@ function render(body: HTMLElement, itemID: number) {
     return;
   }
 
-  if (st.error) {
+  const summary = summaryText(st);
+  if (summary) {
     root.append(
       el(
         doc,
         "div",
-        `실패: ${st.error}`,
-        "color:#c0392b;white-space:pre-wrap;",
+        summary,
+        st.error ? "color:#c0392b;white-space:pre-wrap;" : "",
       ),
     );
   }
   const r = st.result;
   if (r) {
-    root.append(
-      el(
-        doc,
-        "div",
-        r.total === 0
-          ? "대기 중인 질문이 없었습니다."
-          : `처리 ${r.answered}건, 실패 ${r.failures.length}건`,
-      ),
-    );
     for (const [title, items] of [
       ["실패", r.failures],
       ["확인 필요", r.warnings],
@@ -193,31 +150,11 @@ export function registerMemoPanel() {
     },
   });
 
-  // Refresh pending counts when annotations change.
-  observerID = Zotero.Notifier.registerObserver(
-    {
-      notify: (_event: string, type: string, ids: Array<number | string>) => {
-        if (type !== "item") return;
-        const touched = new Set<number>();
-        for (const id of ids) {
-          const it = Zotero.Items.get(Number(id));
-          const paper =
-            it &&
-            (it.isAnnotation() ? it.parentItem?.parentItem : paperItem(it));
-          if (paper) touched.add(paper.id);
-        }
-        for (const id of touched)
-          if (!isMemoBatchRunning(Zotero.Items.get(id) as Zotero.Item))
-            rerender(id);
-      },
-    },
-    ["item"],
-    "claudeassist-memo",
-  );
+  unsubscribe = onMemoStateChange(rerender);
 }
 
 export function unregisterMemoPanel() {
-  if (observerID) Zotero.Notifier.unregisterObserver(observerID);
-  observerID = null;
+  unsubscribe?.();
+  unsubscribe = null;
   mounted.clear();
 }

@@ -17,6 +17,11 @@ import {
   previousQa,
 } from "../notes/qaNote";
 import { hasAnnRef, qaEntryHtml } from "../notes/qaFormat";
+import {
+  lockNoteEditors,
+  refreshLockedEditors,
+  unlockNoteEditors,
+} from "../notes/noteLock";
 import { markAnswered, pendingQuestions } from "../memo/memoSyntax";
 import {
   AnswerStream,
@@ -120,6 +125,18 @@ export async function runMemoBatch(
     throw new Error("이 논문의 메모 처리가 이미 진행 중입니다.");
   running.add(item.id);
   const opened = new Set<string>();
+  const lockedNotes = new Set<number>();
+  // Editor locking is a convenience: its failures must never cost an answer.
+  const lock = async () => {
+    const id = findQaNote(item)?.id;
+    if (!id) return;
+    lockedNotes.add(id);
+    try {
+      await lockNoteEditors(id);
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] note lock failed: ${e}`);
+    }
+  };
   try {
     const { pending, skippedImages } = collectPending(item);
     const result: MemoBatchResult = {
@@ -189,6 +206,8 @@ export async function runMemoBatch(
     };
     const model = getPref("claude.modelAnswer");
     let done = 0;
+    // Open editors of the Q&A note are read-only until the batch ends.
+    await lock();
     ui.progress(0, questions.length);
 
     const fail = (q: MemoQuestion, reason: string) =>
@@ -213,6 +232,7 @@ export async function runMemoBatch(
       usedModel: string,
     ) => {
       const p = byRef.get(q.ref)!;
+      await lock(); // editors opened since the last answer
       const before = findQaNote(item)?.getNote() ?? "";
       const note = await appendQaEntry(
         item,
@@ -231,6 +251,12 @@ export async function runMemoBatch(
         }),
       );
       result.qaNoteID = note.id;
+      lockedNotes.add(note.id);
+      try {
+        await refreshLockedEditors(note.id);
+      } catch (e) {
+        Zotero.debug(`[Claude Assist] note refresh failed: ${e}`);
+      }
       done++;
       result.answered++;
       ui.progress(done, questions.length);
@@ -351,7 +377,18 @@ export async function runMemoBatch(
     }
     return result;
   } finally {
-    closeTabs(opened);
+    try {
+      closeTabs(opened);
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] closing reader tabs failed: ${e}`);
+    }
+    for (const id of lockedNotes) {
+      try {
+        await unlockNoteEditors(id);
+      } catch (e) {
+        Zotero.debug(`[Claude Assist] note unlock failed: ${e}`);
+      }
+    }
     running.delete(item.id);
   }
 }

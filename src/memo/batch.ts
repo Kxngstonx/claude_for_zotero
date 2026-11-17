@@ -121,6 +121,35 @@ export function buildMemoContent(input: MemoPromptInput): unknown[] {
   return blocks;
 }
 
+// Signatures of a second escaping layer, checked only when the answer has no
+// real line break (a double-escaped answer never has one).
+//   strong: two backslashes before a command name ("\\mathbf")
+//   weak:   backslash-n not followed by a letter ("\n\n이", "\n- ")
+const STRONG = /\\\\[A-Za-z]{2,}/;
+const WEAK = /\\n(?![A-Za-z])/;
+
+/**
+ * Undoes a second layer of JSON escaping that models sometimes add: after
+ * JSON.parse such an answer still holds "\n" (backslash + n) for line breaks
+ * and "\\mathbf" (two backslashes) for LaTeX commands. Answers with real line
+ * breaks, or without these signatures, are returned unchanged.
+ */
+export function normalizeAnswer(answer: string): string {
+  if (answer.includes("\n")) return answer;
+  if (STRONG.test(answer)) {
+    // In a double-escaped text a single "\n" is always an escaped newline
+    // (a LaTeX \nabla would appear as "\\nabla").
+    return answer.replace(/\\(\\|"|n)/g, (_, c: string) =>
+      c === "n" ? "\n" : c,
+    );
+  }
+  if (WEAK.test(answer)) {
+    // No doubled commands: only newline escapes that cannot be LaTeX.
+    return answer.replace(/\\n(?![A-Za-z])/g, "\n");
+  }
+  return answer;
+}
+
 /**
  * Parses streamed model text as JSON Lines {"id","answer"} (§9.4). Lines
  * that are not complete JSON objects for a known id are ignored; only the
@@ -156,6 +185,6 @@ export class AnswerStream {
     if (!this.ids.has(o.id) || this.seen.has(o.id) || !o.answer.trim())
       return [];
     this.seen.add(o.id);
-    return [{ id: o.id, answer: o.answer }];
+    return [{ id: o.id, answer: normalizeAnswer(o.answer) }];
   }
 }

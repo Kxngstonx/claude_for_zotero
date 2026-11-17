@@ -2,7 +2,7 @@
 // and (ZCA_E2E=1) a real batch with a forced interruption and one retry.
 import { assert } from "chai";
 import { config } from "../../package.json";
-import { api, importSentencesPdf } from "./fixtures";
+import { api, importSentencesPdf, waitFor } from "./fixtures";
 
 let seq = 0;
 
@@ -179,6 +179,87 @@ describe("M3", function () {
       qaNote.previousQa(item),
       "Q: first?\nA: one\n\nQ: second?\nA: two",
     );
+  });
+
+  it("keeps text typed in an open Q&A note editor while a batch appends", async function () {
+    const { item } = await paper("Concurrent edit");
+    const { qaNote, noteLock } = api();
+    const entry = (q: string) =>
+      `<hr/><p><strong>Q.</strong> ${q}</p><p>answer</p><p><em>p.1 · 2026-11-17 16:30 · m · ann:K#1</em></p>`;
+    const note = await qaNote.appendQaEntry(item, entry("first?"));
+
+    const zp = Zotero.getMainWindow().ZoteroPane;
+    await zp.openNoteWindow(note.id);
+    const editor = () =>
+      (Zotero.Notes as any)._editorInstances.find(
+        (x: any) => x._item?.id === note.id && x._iframeWindow,
+      );
+    const inst = await waitFor(editor, 15000);
+    await inst._initPromise;
+    await Zotero.Promise.delay(500);
+    const el = await waitFor(() =>
+      Array.from(
+        (zp.findNoteWindow(note.id)?.document.querySelectorAll("note-editor") ??
+          []) as any[],
+      ).find((e: any) => e.getCurrentInstance?.() === inst),
+    );
+    try {
+      // typed but not yet saved by the editor (its own save is debounced)
+      inst._postMessage({
+        action: "insertHTML",
+        pos: null,
+        html: "<p>USER-TYPED-TEXT</p>",
+      });
+      await Zotero.Promise.delay(50);
+
+      await noteLock.lockNoteEditors(note.id);
+      assert.equal(el.mode, "view", "editor is read-only during the batch");
+      await qaNote.appendQaEntry(item, entry("second?"));
+      await noteLock.refreshLockedEditors(note.id);
+      await noteLock.unlockNoteEditors(note.id);
+      assert.equal(el.mode, "edit", "editor is editable again");
+      await Zotero.Promise.delay(1500); // any editor save would land by now
+
+      const html: string = Zotero.Items.get(note.id).getNote();
+      assert.include(html, "USER-TYPED-TEXT", "typed text kept");
+      assert.include(html, "second?", "appended entry kept");
+      assert.include(html, "first?");
+    } finally {
+      zp.findNoteWindow(note.id)?.close();
+    }
+  });
+
+  it("shows a reader toolbar button whose label follows the memo state", async function () {
+    const { item, att } = await paper("Toolbar");
+    const ann = await annotate(att, { text: "x", comment: "@claude q" });
+    const opened = new Set<string>();
+    try {
+      const reader = await api().annotationContext.readerFor(att, opened);
+      const doc = reader._iframeWindow.document;
+      const button = await waitFor(
+        () =>
+          doc.querySelector(".claudeassist-memo-button") as HTMLButtonElement,
+        10000,
+      );
+      assert.equal(button.textContent, "Claude 메모 1");
+      assert.isFalse(button.disabled);
+
+      ann.annotationComment = "@claude ✓ q";
+      await ann.saveTx();
+      await waitFor(() => button.textContent === "Claude 메모", 5000);
+      assert.isTrue(button.disabled, "nothing pending and no Q&A note");
+
+      await api().qaNote.appendQaEntry(
+        item,
+        "<hr/><p><strong>Q.</strong> q</p><p>a</p><p><em>p.1 · 2026-11-17 16:30 · m · ann:K#1</em></p>",
+      );
+      ann.annotationComment = "@claude ✓ q\nmore"; // any annotation change refreshes
+      await ann.saveTx();
+      await waitFor(() => button.textContent === "질문 노트", 5000);
+      assert.isFalse(button.disabled);
+    } finally {
+      api().annotationContext.closeTabs(opened);
+    }
   });
 
   describe("end to end (ZCA_E2E=1)", function () {

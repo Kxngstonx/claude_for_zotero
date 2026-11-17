@@ -8,6 +8,14 @@ import {
   registerMemoPanel,
   unregisterMemoPanel,
 } from "./features/sidebar/memoPanel";
+import {
+  registerMemoToolbar,
+  unregisterMemoToolbar,
+} from "./features/memoToolbar";
+import {
+  registerMemoObserver,
+  unregisterMemoObserver,
+} from "./features/memoState";
 
 async function onStartup() {
   await Promise.all([
@@ -21,6 +29,8 @@ async function onStartup() {
   registerTranslate();
   registerContextNoteMenu();
   registerMemoPanel();
+  registerMemoToolbar();
+  registerMemoObserver();
 
   try {
     await ensureUserPrompts();
@@ -52,6 +62,8 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 function onShutdown(): void {
   unregisterTranslate();
   unregisterMemoPanel();
+  unregisterMemoToolbar();
+  unregisterMemoObserver();
   ztoolkit.unregisterAll();
   // Remove addon object
   addon.data.alive = false;

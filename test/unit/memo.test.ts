@@ -11,6 +11,7 @@ import {
   buildMemoContent,
   memoTimeoutSec,
   neutralizeTags,
+  normalizeAnswer,
   splitBatches,
   type MemoQuestion,
 } from "../../src/memo/batch.ts";
@@ -330,4 +331,51 @@ test("previousQaText keeps answers that contain a --- rule", () => {
     previousQaText(text, 6000),
     "Q: first?\nA: part one\n---\npart two",
   );
+});
+
+test("normalizeAnswer undoes double escaping seen in a real answer", () => {
+  // after JSON.parse the model's line still held "\n" and "\\mathbf"
+  const broken =
+    "NTN 내용이 없음].\\n\\n이 논문에서는 Eq. 11은 $\\\\mathbf{p}_u \\\\odot \\\\mathbf{q}_i$와 $a$ 안에서 더한다.";
+  assert.equal(
+    normalizeAnswer(broken),
+    "NTN 내용이 없음].\n\n이 논문에서는 Eq. 11은 $\\mathbf{p}_u \\odot \\mathbf{q}_i$와 $a$ 안에서 더한다.",
+  );
+  // through the stream, from the raw line the model wrote
+  const s = new AnswerStream(["q1"]);
+  const raw = JSON.stringify({ id: "q1", answer: broken });
+  assert.equal(s.push(raw + "\n")[0].answer, normalizeAnswer(broken));
+});
+
+test("normalizeAnswer leaves correct answers alone", () => {
+  for (const ok of [
+    "줄바꿈\n\n$\\mathbf{W}$ 와 $\\nabla f$, $a \\neq b$, $\\nu$, $\\times$",
+    "LaTeX line break $a \\\\ b$ and no escapes",
+    "plain text",
+  ]) {
+    assert.equal(normalizeAnswer(ok), ok);
+  }
+  // mixed: doubled commands fixed, a stray single \\times kept
+  assert.equal(
+    normalizeAnswer("$\\\\alpha \\times b$\\n다음"),
+    "$\\alpha \\times b$\n다음",
+  );
+});
+
+test("normalizeAnswer: once detected, every escaped newline is decoded", () => {
+  const broken = "Intro.\\n\\nThe model uses $\\\\mathbf{x}$.\\nEq. 3 follows.";
+  assert.equal(
+    normalizeAnswer(broken),
+    "Intro.\n\nThe model uses $\\mathbf{x}$.\nEq. 3 follows.",
+  );
+});
+
+test("normalizeAnswer: correct answers with LaTeX row breaks or real newlines are kept", () => {
+  for (const ok of [
+    "$\\begin{aligned}x&=1\\\\y&=2\\end{aligned}$",
+    "첫 줄\n$\\\\mathbf{x}$는 그대로 (실제 줄바꿈이 있으면 손대지 않음)",
+    'umlaut \\"{o} kept',
+  ]) {
+    assert.equal(normalizeAnswer(ok), ok);
+  }
 });
