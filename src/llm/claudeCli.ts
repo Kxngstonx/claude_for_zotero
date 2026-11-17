@@ -182,6 +182,8 @@ export interface RunOnceOptions {
 export interface RunOnceResult {
   text: string;
   sessionId: string | null;
+  /** Resolved model id reported by the CLI, or null. */
+  model: string | null;
 }
 
 /**
@@ -252,7 +254,11 @@ export function runOnce(o: RunOnceOptions): Promise<RunOnceResult> {
         stderrTail(stderr.text) || "claude가 결과 없이 종료되었습니다.",
       );
     }
-    return { text: turn.finalText(), sessionId: turn.sessionId };
+    return {
+      text: turn.finalText(),
+      sessionId: turn.sessionId,
+      model: turn.model,
+    };
   });
 }
 

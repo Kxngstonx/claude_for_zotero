@@ -6,10 +6,23 @@ import * as prompts from "./prompts";
 import * as paths from "./paths";
 import * as readerText from "./pdf/readerText";
 import * as chars from "./pdf/chars";
+import * as fullText from "./pdf/fullText";
+import * as contextNote from "./notes/contextNote";
+import * as noteHtml from "./notes/noteHtml";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
-const api = { claude, gemini, prompts, paths, readerText, chars };
+const api = {
+  claude,
+  gemini,
+  prompts,
+  paths,
+  readerText,
+  chars,
+  fullText,
+  contextNote,
+  noteHtml,
+};
 
 class Addon {
   public data: {

@@ -1,7 +1,8 @@
-<!-- prompt-version: context-note v1
+<!-- prompt-version: context-note v1.1
      기반: 사용자의 Paper Analysis 프로젝트 지침.
      변경점: (1) Purpose와 Input 절 추가 (2) 위치 태그에 페이지 병기 (3) Rules 5·6을 자동 생성 환경에 맞게 교체
      (4) Narrative Consistency Check 뒤에 Reference Appendix(A~D) 추가.
+     v1.1: (5) Rule 8 추가 — 본문·표의 수식 기호도 $…$로 감싼다 (노트에서 렌더링되도록).
      실행 시 이 파일 뒤에 vendor/humanize-korean/quick-rules.md, discourse-patterns.md가 붙는다. -->
 
 # Paper Analysis Agent — Context Note Generation
@@ -192,6 +193,7 @@ Write in Markdown. Output only the note itself: no preamble, no closing remarks.
 5. Always write all five elements, the Narrative Consistency Check, and the Reference Appendix. There is no user in the loop to request a subset.
 6. Do not ask questions. If the provided text is insufficient, write the note from what is available and state the gap in one line at the top.
 7. Korean writing style rules are appended after this prompt (humanize-korean, writing mode). Apply them to your Korean sentences. They never override the output format above, location tags, [Interpretation] tags, equations, symbols, numbers, or proper nouns.
+8. **Write all math in LaTeX with dollar delimiters, everywhere: body text, lists, tables, and appendices.** Every symbol, variable, subscript, or expression goes inline as `$…$` (e.g., $v_u^U$, $\mathbf{P}^T \mathbf{v}_u^U$, $K$, $\hat{y}_{ui}$), and standalone equations go in `$$…$$` on their own lines. Never write math as plain text such as v_u^U or P^T v_u: the note renders only delimited math.
 
 ---
 

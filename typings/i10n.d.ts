@@ -3,6 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 export type FluentMessageId =
+  | 'menu-context-note'
   | 'pref-chat-idle'
   | 'pref-claude-model-answer'
   | 'pref-claude-model-note'
