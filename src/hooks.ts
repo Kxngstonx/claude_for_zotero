@@ -4,6 +4,7 @@ import { onPrefsPaneLoad, registerPrefsPane } from "./modules/prefsPane";
 import { ensureUserPrompts } from "./prompts";
 import { registerTranslate, unregisterTranslate } from "./features/translate";
 import { registerContextNoteMenu } from "./features/contextNoteMenu";
+import { shutdownChats } from "./chat/chatSession";
 import {
   registerMemoPanel,
   unregisterMemoPanel,
@@ -61,6 +62,7 @@ async function onMainWindowUnload(_win: Window): Promise<void> {
 
 function onShutdown(): void {
   unregisterTranslate();
+  shutdownChats();
   unregisterMemoPanel();
   unregisterMemoToolbar();
   unregisterMemoObserver();

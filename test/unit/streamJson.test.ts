@@ -134,3 +134,20 @@ test("userMessage builds one stream-json line", () => {
     message: { role: "user", content: [{ type: "text", text: "hi" }] },
   });
 });
+
+test("TurnCollector separates text blocks around a tool call", () => {
+  const t = new TurnCollector();
+  const start = {
+    type: "stream_event",
+    event: { type: "content_block_start", content_block: { type: "text" } },
+  };
+  t.add(start);
+  t.add(delta("text_delta", { text: "Let me read it." }));
+  t.add({
+    type: "stream_event",
+    event: { type: "content_block_start", content_block: { type: "tool_use" } },
+  });
+  t.add(start);
+  t.add(delta("text_delta", { text: "The answer." }));
+  assert.equal(t.text, "Let me read it.\n\nThe answer.");
+});

@@ -110,6 +110,17 @@ export class TurnCollector {
         if (!this.sessionId && ev.session_id) this.sessionId = ev.session_id;
         return null;
       default: {
+        // A new text block after earlier text (e.g. after a tool call):
+        // keep them apart in the streamed text.
+        if (
+          ev.type === "stream_event" &&
+          ev.event?.type === "content_block_start" &&
+          ev.event.content_block?.type === "text" &&
+          this.text &&
+          !this.text.endsWith("\n")
+        ) {
+          this.text += "\n\n";
+        }
         const d = textDelta(ev);
         if (d) this.text += d;
         return d;

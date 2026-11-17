@@ -90,3 +90,23 @@ test("modelsFromControlResponse", () => {
     }),
   );
 });
+
+import { chatArgs } from "../../src/llm/claudeArgs.ts";
+
+test("chatArgs confines Read to the working directory and resumes", () => {
+  const a = chatArgs({ model: "sonnet", systemPromptFile: "/c/sys.md" });
+  const after = (flag: string) => a[a.indexOf(flag) + 1];
+  assert.equal(after("--tools"), "Read");
+  assert.equal(after("--allowedTools"), "Read(./**)");
+  assert.ok(a.includes("--restricted"));
+  assert.ok(a.includes("--include-partial-messages"));
+  assert.equal(after("--permission-mode"), "dontAsk");
+  assert.equal(
+    a.includes("--no-session-persistence"),
+    false,
+    "sessions must persist for --resume",
+  );
+  assert.equal(a.includes("--resume"), false);
+  const b = chatArgs({ model: "sonnet", systemPromptFile: "x", resume: "abc" });
+  assert.equal(b[b.indexOf("--resume") + 1], "abc");
+});

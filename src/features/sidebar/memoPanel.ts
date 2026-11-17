@@ -2,6 +2,8 @@
 // question button, progress, result summary, link to the Q&A note.
 
 import { getLocaleID } from "../../utils/locale";
+import { mountChat, unmountChats } from "./chatPanel";
+import { el } from "./dom";
 import { paperItem } from "../../notes/contextNote";
 import { collectPending, isMemoBatchRunning } from "../memoBatch";
 import {
@@ -11,23 +13,9 @@ import {
   summaryText,
 } from "../memoState";
 
-const HTML = "http://www.w3.org/1999/xhtml";
-
 // Mounted panel bodies → the paper they show.
 const mounted = new Map<HTMLElement, number>();
 let unsubscribe: (() => void) | null = null;
-
-function el<K extends keyof HTMLElementTagNameMap>(
-  doc: Document,
-  tag: K,
-  text?: string,
-  style?: string,
-): HTMLElementTagNameMap[K] {
-  const e = doc.createElementNS(HTML, tag) as HTMLElementTagNameMap[K];
-  if (text !== undefined) e.textContent = text;
-  if (style) e.setAttribute("style", style);
-  return e;
-}
 
 function rerender(itemID: number) {
   for (const [body, id] of mounted) {
@@ -36,18 +24,42 @@ function rerender(itemID: number) {
   }
 }
 
+/**
+ * The section body holds the memo area (re-rendered on every state change)
+ * and the chat area (mounted once, updated in place so typing is not lost).
+ */
+function parts(body: HTMLElement): { memo: HTMLElement; chat: HTMLElement } {
+  const doc = body.ownerDocument!;
+  let memo = body.querySelector(":scope > .zca-memo") as HTMLElement | null;
+  let chat = body.querySelector(":scope > .zca-chat") as HTMLElement | null;
+  if (!memo || !chat) {
+    body.replaceChildren();
+    memo = el(doc, "div");
+    memo.className = "zca-memo";
+    chat = el(doc, "div");
+    chat.className = "zca-chat";
+    body.append(memo, chat);
+  }
+  return { memo, chat };
+}
+
 function render(body: HTMLElement, itemID: number) {
   const doc = body.ownerDocument!;
   const item = Zotero.Items.get(itemID);
-  body.replaceChildren();
-  if (!item) return;
+  if (!item) {
+    body.replaceChildren();
+    return;
+  }
+  const { memo, chat } = parts(body);
+  mountChat(chat, itemID);
+  memo.replaceChildren();
   const root = el(
     doc,
     "div",
     undefined,
     "display:flex;flex-direction:column;gap:6px;padding:4px 0;",
   );
-  body.append(root);
+  memo.append(root);
 
   const running = isMemoBatchRunning(item);
   const st = memoState(itemID);
@@ -152,6 +164,7 @@ export function registerMemoPanel() {
 }
 
 export function unregisterMemoPanel() {
+  unmountChats();
   unsubscribe?.();
   unsubscribe = null;
   mounted.clear();

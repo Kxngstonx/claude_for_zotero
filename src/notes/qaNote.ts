@@ -6,7 +6,7 @@ import { paperMeta, taggedNotes } from "./contextNote";
 import { shortTitle } from "./contextNoteFormat";
 import { appendEntry, previousQaText, QA_TAG, qaNoteHtml } from "./qaFormat";
 import { noteHtmlToText } from "./noteText";
-import { dbIdle } from "./noteLock";
+import { dbIdle, lockNoteEditors, unlockNoteEditors } from "./noteLock";
 
 export function findQaNote(item: Zotero.Item): Zotero.Item | null {
   return taggedNotes(item, QA_TAG)[0] ?? null;
@@ -70,6 +70,23 @@ export function appendQaEntry(
       );
     }
   });
+}
+
+/**
+ * appendQaEntry with open editors of the note made read-only around the
+ * write (as during a memo batch), so text being typed there is not lost.
+ */
+export async function appendQaEntryLocked(
+  item: Zotero.Item,
+  entryHtml: string,
+): Promise<Zotero.Item> {
+  const id = findQaNote(item)?.id;
+  if (id) await lockNoteEditors(id).catch(() => undefined);
+  try {
+    return await appendQaEntry(item, entryHtml);
+  } finally {
+    if (id) await unlockNoteEditors(id).catch(() => undefined);
+  }
 }
 
 /** <previous_qa> text for prompts (§9.3). */

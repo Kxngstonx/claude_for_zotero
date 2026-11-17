@@ -128,3 +128,48 @@ export function modelsFromControlResponse(ev: any): ModelInfo[] | null {
   const models = r?.response?.models;
   return Array.isArray(models) ? models : [];
 }
+
+export interface ChatArgs {
+  model: string;
+  systemPromptFile: string;
+  resume?: string | null;
+  effort?: string;
+}
+
+/**
+ * argv for a sidebar chat session (context.md §10): stream-json in/out,
+ * streamed partial messages, persisted session (for --resume), and only the
+ * Read tool confined to the working directory (the paper's section files).
+ * Reads outside it are denied twice over: --restricted confines file tools
+ * to the working directory, and the allow rule is path-scoped (a bare
+ * "Read" rule allowed reading anywhere — verified with claude 2.1.326).
+ */
+export function chatArgs(o: ChatArgs): string[] {
+  const args = [
+    "-p",
+    "--input-format",
+    "stream-json",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--include-partial-messages",
+    "--setting-sources",
+    "local",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--restricted",
+    "--permission-mode",
+    "dontAsk",
+    "--tools",
+    "Read",
+    "--allowedTools",
+    "Read(./**)",
+    "--system-prompt-file",
+    o.systemPromptFile,
+    "--model",
+    o.model,
+  ];
+  if (o.effort) args.push("--effort", o.effort);
+  if (o.resume) args.push("--resume", o.resume);
+  return args;
+}
