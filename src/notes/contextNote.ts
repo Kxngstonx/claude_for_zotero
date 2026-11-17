@@ -101,6 +101,8 @@ async function generate(
   let received = 0;
   onProgress?.("model", model);
   const res = await runOnce({
+    feature: "context-note",
+    logDetail: { pages: pageCount },
     systemPrompt: system,
     content: [{ type: "text", text: contextNoteUserMessage(meta, text) }],
     model,

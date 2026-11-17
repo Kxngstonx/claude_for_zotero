@@ -6,6 +6,8 @@
 // (addon/content/claude-process.js, store.js), MIT License.
 
 import { getPref } from "../utils/prefs";
+import { logged } from "../log";
+import type { LogFeature } from "../logFormat";
 import { oneShotRunDir } from "../paths";
 import {
   absolutePath,
@@ -19,6 +21,7 @@ import {
   type ModelInfo,
 } from "./claudeArgs";
 import {
+  claudeErrorText,
   LineBuffer,
   parseJsonLine,
   TurnCollector,
@@ -181,6 +184,10 @@ export interface RunOnceOptions {
   onModel?: (model: string) => void;
   /** Called after the process starts with a function that kills it. */
   onStart?: (kill: () => void) => void;
+  /** Activity log label (M6). */
+  feature: LogFeature;
+  /** Extra facts for the activity log. */
+  logDetail?: Record<string, string | number | boolean>;
 }
 
 export interface RunOnceResult {
@@ -195,82 +202,90 @@ export interface RunOnceResult {
  * killed; text already passed to onText stays delivered.
  */
 export function runOnce(o: RunOnceOptions): Promise<RunOnceResult> {
-  return serialize(async () => {
-    const bin = await requireClaude();
-    const dir = oneShotRunDir();
-    await IOUtils.makeDirectory(dir, { createAncestors: true });
-    const promptFile = PathUtils.join(dir, "system-prompt.md");
-    await IOUtils.writeUTF8(promptFile, o.systemPrompt);
+  return serialize(() =>
+    logged(
+      { feature: o.feature, model: o.model, detail: o.logDetail },
+      () => runOnceInner(o),
+      (r) => r.model,
+    ),
+  );
+}
 
-    const args = oneShotArgs({
-      model: o.model,
-      effort: o.effort,
-      systemPromptFile: promptFile,
-    });
-    const { proc, stderr, drained } = await launch(bin.path, args, {
-      workdir: dir,
-      stderr: "pipe",
-    });
+async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
+  const bin = await requireClaude();
+  const dir = oneShotRunDir();
+  await IOUtils.makeDirectory(dir, { createAncestors: true });
+  const promptFile = PathUtils.join(dir, "system-prompt.md");
+  await IOUtils.writeUTF8(promptFile, o.systemPrompt);
 
-    let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, o.timeoutSec * 1000);
-
-    o.onStart?.(() => proc.kill());
-
-    const turn = new TurnCollector();
-    const lines = new LineBuffer();
-    let modelReported = false;
-    const handle = (line: string) => {
-      const d = turn.add(parseJsonLine(line));
-      if (!modelReported && turn.model) {
-        modelReported = true;
-        o.onModel?.(turn.model);
-      }
-      if (d && o.onText) o.onText(d);
-    };
-    try {
-      try {
-        await proc.stdin.write(userMessage(o.content));
-        await proc.stdin.close();
-      } catch (e) {
-        // claude exited before reading stdin; the stderr tail below explains why.
-        ztoolkit.log("claude stdin write failed", e);
-      }
-      let chunk: string;
-      while ((chunk = await proc.stdout.readString())) {
-        for (const line of lines.push(chunk)) handle(line);
-      }
-      const rest = lines.flush();
-      if (rest) handle(rest);
-      await proc.wait();
-      await drained;
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (timedOut) {
-      throw new ClaudeError(
-        "timeout",
-        `${o.timeoutSec}초 안에 응답이 끝나지 않았습니다.`,
-      );
-    }
-    const err = turn.error();
-    if (err) throw new ClaudeError(err.kind, err.message);
-    if (!turn.result) {
-      throw new ClaudeError(
-        "other",
-        stderrTail(stderr.text) || "claude가 결과 없이 종료되었습니다.",
-      );
-    }
-    return {
-      text: turn.finalText(),
-      sessionId: turn.sessionId,
-      model: turn.model,
-    };
+  const args = oneShotArgs({
+    model: o.model,
+    effort: o.effort,
+    systemPromptFile: promptFile,
   });
+  const { proc, stderr, drained } = await launch(bin.path, args, {
+    workdir: dir,
+    stderr: "pipe",
+  });
+
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.kill();
+  }, o.timeoutSec * 1000);
+
+  o.onStart?.(() => proc.kill());
+
+  const turn = new TurnCollector();
+  const lines = new LineBuffer();
+  let modelReported = false;
+  const handle = (line: string) => {
+    const d = turn.add(parseJsonLine(line));
+    if (!modelReported && turn.model) {
+      modelReported = true;
+      o.onModel?.(turn.model);
+    }
+    if (d && o.onText) o.onText(d);
+  };
+  try {
+    try {
+      await proc.stdin.write(userMessage(o.content));
+      await proc.stdin.close();
+    } catch (e) {
+      // claude exited before reading stdin; the stderr tail below explains why.
+      ztoolkit.log("claude stdin write failed", e);
+    }
+    let chunk: string;
+    while ((chunk = await proc.stdout.readString())) {
+      for (const line of lines.push(chunk)) handle(line);
+    }
+    const rest = lines.flush();
+    if (rest) handle(rest);
+    await proc.wait();
+    await drained;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (timedOut) {
+    throw new ClaudeError(
+      "timeout",
+      `${o.timeoutSec}초 안에 응답이 끝나지 않았습니다.`,
+    );
+  }
+  const err = turn.error();
+  if (err) throw new ClaudeError(err.kind, err.message);
+  if (!turn.result) {
+    throw new ClaudeError(
+      "other",
+      stderrTail(stderr.text) || "claude가 결과 없이 종료되었습니다.",
+    );
+  }
+  return {
+    text: turn.finalText(),
+    sessionId: turn.sessionId,
+    model: turn.model,
+  };
 }
 
 /** Lists models via the `initialize` control request (§5.3). */
@@ -321,17 +336,7 @@ export function listModels(timeoutMs = 20000): Promise<ModelInfo[]> {
 }
 
 export function errorMessage(e: unknown): string {
-  if (e instanceof ClaudeError) {
-    const prefix: Record<ClaudeErrorKind, string> = {
-      not_found: "CLI 미발견",
-      auth: "로그인 필요 (터미널에서 `claude`를 실행해 로그인하세요)",
-      limit: "사용량 한도 초과",
-      model: "모델 오류",
-      timeout: "시간 초과",
-      other: "오류",
-    };
-    return `${prefix[e.kind]}: ${e.message}`;
-  }
+  if (e instanceof ClaudeError) return claudeErrorText(e.kind, e.message);
   return String(e);
 }
 

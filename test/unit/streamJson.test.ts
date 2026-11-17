@@ -151,3 +151,40 @@ test("TurnCollector separates text blocks around a tool call", () => {
   t.add(delta("text_delta", { text: "The answer." }));
   assert.equal(t.text, "Let me read it.\n\nThe answer.");
 });
+
+import { claudeErrorText, resetTime } from "../../src/llm/streamJson.ts";
+
+test("claudeErrorText says what to do for each kind", () => {
+  assert.match(claudeErrorText("not_found", ""), /claude 경로를 입력/);
+  assert.match(
+    claudeErrorText("auth", "Not logged in · Please run /login"),
+    /\/login 한 뒤[\s\S]*\(Not logged in/,
+  );
+  assert.match(
+    claudeErrorText("limit", "You've hit your session limit · resets 3:45pm"),
+    /^Claude 사용량 한도에 도달했습니다\. 3:45pm 이후 다시 시도하세요/,
+  );
+  assert.match(claudeErrorText("limit", "rate_limit"), /잠시 후 다시 시도/);
+  assert.match(
+    claudeErrorText("model", "There's an issue with the selected model"),
+    /연결 테스트/,
+  );
+  assert.match(
+    claudeErrorText("timeout", "600초 안에 응답이 끝나지 않았습니다."),
+    /^600초 안에[\s\S]*타임아웃은 설정/,
+  );
+  assert.equal(
+    claudeErrorText("other", "boom"),
+    "Claude 실행 중 오류가 났습니다: boom",
+  );
+});
+
+test("resetTime keeps parentheses and dotted dates", () => {
+  assert.equal(
+    resetTime("You've hit your limit · resets 3pm (Asia/Seoul)"),
+    "3pm (Asia/Seoul)",
+  );
+  assert.equal(resetTime("limit · resets 3am ∙ /upgrade to Max"), "3am");
+  assert.equal(resetTime("weekly limit · resets Nov. 20."), "Nov. 20");
+  assert.equal(resetTime("no time here"), null);
+});

@@ -359,6 +359,11 @@ export async function runMemoBatch(
       let error: unknown = null;
       try {
         await runOnce({
+          feature: "memo",
+          logDetail: {
+            questions: batch.length,
+            images: batch.filter((q) => q.image).length,
+          },
           systemPrompt: system,
           content: buildMemoContent({
             ...shared,

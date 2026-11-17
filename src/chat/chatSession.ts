@@ -9,6 +9,7 @@
 // per section; the model may Read only there (see chatArgs).
 
 import { getPref } from "../utils/prefs";
+import { logged } from "../log";
 import { composePrompt } from "../prompts";
 import { pluginDataDir } from "../paths";
 import { ClaudeError, launchClaude } from "../llm/claudeCli";
@@ -42,6 +43,7 @@ const TURN_TIMEOUT_SEC = 600;
 export class ChatStopped extends Error {
   constructor() {
     super("답변을 중단했습니다.");
+    this.name = "ChatStopped";
   }
 }
 
@@ -81,8 +83,9 @@ export class ChatSession {
   private cancelled = false;
   private loading: Promise<ChatHistory> | null = null;
   private inflight: Promise<unknown> | null = null;
-  /** Model the running process was started with. */
+  /** Model and system prompt the running process was started with. */
   private procModel: string | null = null;
+  private procPrompt: string | null = null;
   /** Notices that arrived during a send; added after its answer. */
   private deferredNotices: string[] = [];
   private changeListeners = new Set<() => void>();
@@ -190,19 +193,20 @@ export class ChatSession {
 
   // ---------------------------------------------------------------- process
 
-  private async ensureProcess(resume: string | null): Promise<void> {
+  private async ensureProcess(
+    resume: string | null,
+    prompt: string,
+  ): Promise<void> {
     if (this.proc) return;
     const { base, cwd, promptFile } = this.paths();
     await IOUtils.makeDirectory(base, { createAncestors: true });
-    await IOUtils.writeUTF8(
-      promptFile,
-      await composePrompt("sidebar-chat.md", "humanize-digest.md"),
-    );
+    await IOUtils.writeUTF8(promptFile, prompt);
     const model = getPref("claude.modelAnswer");
     const args = chatArgs({ model, systemPromptFile: promptFile, resume });
     const { proc, stderr } = await launchClaude(args, cwd);
     this.proc = proc;
     this.procModel = model;
+    this.procPrompt = prompt;
     this.stderr = stderr;
     void this.readLoop(proc);
   }
@@ -282,15 +286,38 @@ export class ChatSession {
       });
   }
 
+  private loggedTurn(
+    content: string,
+    cb: TurnCallbacks,
+    resume: string | null,
+  ) {
+    return logged(
+      {
+        feature: "chat",
+        model: getPref("claude.modelAnswer"),
+        detail: { resumed: !!resume },
+      },
+      () => this.runTurn(content, cb, resume),
+      (r) => r.model,
+    );
+  }
+
   private async runTurn(
     content: string,
     cb: TurnCallbacks,
     resume: string | null,
   ) {
-    if (this.proc && this.procModel !== getPref("claude.modelAnswer")) {
-      this.stop("internal"); // model changed: relaunch (the session resumes)
+    // Edited prompt files and a changed model apply from the next message:
+    // relaunch (the conversation resumes; see chatArgs on prompt snapshots).
+    const prompt = await composePrompt("sidebar-chat.md", "humanize-digest.md");
+    if (
+      this.proc &&
+      (this.procModel !== getPref("claude.modelAnswer") ||
+        this.procPrompt !== prompt)
+    ) {
+      this.stop("internal");
     }
-    await this.ensureProcess(resume);
+    await this.ensureProcess(resume, prompt);
     if (this.cancelled) {
       this.stop("internal");
       throw new ChatStopped();
@@ -369,7 +396,7 @@ export class ChatSession {
     if (h.sessionId) {
       try {
         cb.onStatus?.("답변 중…");
-        result = await this.runTurn(text, cb, h.sessionId);
+        result = await this.loggedTurn(text, cb, h.sessionId);
       } catch (e) {
         // Only a session that no longer exists starts over (with the full
         // context); other errors keep the session for the next message.
@@ -392,7 +419,7 @@ export class ChatSession {
       const pre = await this.preamble(cb);
       check();
       cb.onStatus?.("답변 중…");
-      result = await this.runTurn(firstTurnText(pre, text), cb, null);
+      result = await this.loggedTurn(firstTurnText(pre, text), cb, null);
     }
     if (result.sessionId) h.sessionId = result.sessionId;
     const msg: ChatMessage = {

@@ -1,402 +1,144 @@
-# Zotero Plugin Template
+# Zotero Claude Assist
 
-[![zotero target version](https://img.shields.io/badge/Zotero-7-green?style=flat-square&logo=zotero&logoColor=CC2936)](https://www.zotero.org)
-[![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
+PDF 논문을 깊게 읽기 위한 개인용 Zotero 플러그인입니다. 설계는 [`context.md`](context.md), 구현하면서 바꾼 점은 [`docs/decisions.md`](docs/decisions.md)에 있습니다.
 
-This is a plugin template for [Zotero](https://www.zotero.org/).
+| 기능          | 하는 일                                                                                        | 백엔드                 |
+| ------------- | ---------------------------------------------------------------------------------------------- | ---------------------- |
+| 문맥 번역     | PDF에서 선택한 문장을 앞뒤 문장과 함께 번역                                                    | Gemini API (무료 티어) |
+| 컨텍스트 노트 | 논문마다 구조화된 분석 노트를 한 번 생성 (태그 `claude-context`)                               | Claude (`opus`)        |
+| 메모 질문     | 하이라이트·그림 주석의 `@claude 질문`을 모아 한 번에 답하고 질문 노트(태그 `claude-qa`)에 기록 | Claude (`sonnet`)      |
+| 채팅          | 논문 전체에 대한 대화. 필요하면 모델이 섹션 원문을 직접 읽음                                   | Claude (`sonnet`)      |
 
-[English](README.md) | [简体中文](doc/README-zhCN.md) | [Français](doc/README-frFR.md)
+Claude는 로컬에 설치된 공식 `claude` CLI(Claude Code)를 실행해서만 씁니다. 로그인 토큰을 직접 읽거나 Agent SDK를 쓰지 않습니다 (`context.md` §3).
 
-- Documentation for plugins development
-  - [📖 Plugin Development Documentation](https://zotero-chinese.com/plugin-dev-guide/) (Chinese, not yet complete)
-  - [📖 Plugin Development Documentation for Zotero 7](https://www.zotero.org/support/dev/zotero_7_for_developers)
-- Tools for plugins development
-  - [🛠️ Zotero Plugin Toolkit](https://github.com/windingwind/zotero-plugin-toolkit) | [API Documentation](https://github.com/windingwind/zotero-plugin-toolkit/blob/master/docs/zotero-plugin-toolkit.md)
-  - [🛠️ Zotero Plugin Scaffold](https://github.com/northword/zotero-plugin-scaffold)
-  - [ℹ️ Zotero Type Definitions](https://github.com/windingwind/zotero-types)
-  - [📜 Zotero Source Code](https://github.com/zotero/zotero)
-  - [📌 Zotero Plugin Template](https://github.com/windingwind/zotero-plugin-template) (This repo)
+## 요구 사항
 
-> [!tip]
-> 👁 Watch this repo so that you can be notified whenever there are fixes & updates.
+- macOS, Zotero 10 (10.0.9에서 테스트)
+- Claude Code CLI 설치 및 로그인 (터미널에서 `claude` 실행 → `/login`)
+- 문맥 번역을 쓰려면 Google AI Studio API 키 (결제 계정 연결 없이 무료 티어)
+- 빌드: Node.js 24 이상
 
-## Plugins built with this template
+## 설치
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/windingwind/zotero-better-notes?label=zotero-better-notes&style=flat-square)](https://github.com/windingwind/zotero-better-notes)
-[![GitHub Repo stars](https://img.shields.io/github/stars/windingwind/zotero-pdf-preview?label=zotero-pdf-preview&style=flat-square)](https://github.com/windingwind/zotero-pdf-preview)
-[![GitHub Repo stars](https://img.shields.io/github/stars/windingwind/zotero-pdf-translate?label=zotero-pdf-translate&style=flat-square)](https://github.com/windingwind/zotero-pdf-translate)
-[![GitHub Repo stars](https://img.shields.io/github/stars/windingwind/zotero-tag?label=zotero-tag&style=flat-square)](https://github.com/windingwind/zotero-tag)
-[![GitHub Repo stars](https://img.shields.io/github/stars/iShareStuff/ZoteroTheme?label=zotero-theme&style=flat-square)](https://github.com/iShareStuff/ZoteroTheme)
-[![GitHub Repo stars](https://img.shields.io/github/stars/MuiseDestiny/zotero-reference?label=zotero-reference&style=flat-square)](https://github.com/MuiseDestiny/zotero-reference)
-[![GitHub Repo stars](https://img.shields.io/github/stars/MuiseDestiny/zotero-citation?label=zotero-citation&style=flat-square)](https://github.com/MuiseDestiny/zotero-citation)
-[![GitHub Repo stars](https://img.shields.io/github/stars/MuiseDestiny/ZoteroStyle?label=zotero-style&style=flat-square)](https://github.com/MuiseDestiny/ZoteroStyle)
-[![GitHub Repo stars](https://img.shields.io/github/stars/volatile-static/Chartero?label=Chartero&style=flat-square)](https://github.com/volatile-static/Chartero)
-[![GitHub Repo stars](https://img.shields.io/github/stars/l0o0/tara?label=tara&style=flat-square)](https://github.com/l0o0/tara)
-[![GitHub Repo stars](https://img.shields.io/github/stars/redleafnew/delitemwithatt?label=delitemwithatt&style=flat-square)](https://github.com/redleafnew/delitemwithatt)
-[![GitHub Repo stars](https://img.shields.io/github/stars/redleafnew/zotero-updateifsE?label=zotero-updateifsE&style=flat-square)](https://github.com/redleafnew/zotero-updateifsE)
-[![GitHub Repo stars](https://img.shields.io/github/stars/northword/zotero-format-metadata?label=zotero-format-metadata&style=flat-square)](https://github.com/northword/zotero-format-metadata)
-[![GitHub Repo stars](https://img.shields.io/github/stars/inciteful-xyz/inciteful-zotero-plugin?label=inciteful-zotero-plugin&style=flat-square)](https://github.com/inciteful-xyz/inciteful-zotero-plugin)
-[![GitHub Repo stars](https://img.shields.io/github/stars/MuiseDestiny/zotero-gpt?label=zotero-gpt&style=flat-square)](https://github.com/MuiseDestiny/zotero-gpt)
-[![GitHub Repo stars](https://img.shields.io/github/stars/zoushucai/zotero-journalabbr?label=zotero-journalabbr&style=flat-square)](https://github.com/zoushucai/zotero-journalabbr)
-[![GitHub Repo stars](https://img.shields.io/github/stars/MuiseDestiny/zotero-figure?label=zotero-figure&style=flat-square)](https://github.com/MuiseDestiny/zotero-figure)
-[![GitHub Repo stars](https://img.shields.io/github/stars/l0o0/jasminum?label=jasminum&style=flat-square)](https://github.com/l0o0/jasminum)
-[![GitHub Repo stars](https://img.shields.io/github/stars/lifan0127/ai-research-assistant?label=ai-research-assistant&style=flat-square)](https://github.com/lifan0127/ai-research-assistant)
-[![GitHub Repo stars](https://img.shields.io/github/stars/daeh/zotero-markdb-connect?label=zotero-markdb-connect&style=flat-square)](https://github.com/daeh/zotero-markdb-connect)
-[![GitHub Repo stars](https://img.shields.io/github/stars/daeh/zotero-citation-tally?label=citation-tally&style=flat-square)](https://github.com/daeh/zotero-citation-tally)
-
-If you are using this repo, I recommended that you put the following badge on your README:
-
-[![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
-
-```md
-[![Using Zotero Plugin Template](https://img.shields.io/badge/Using-Zotero%20Plugin%20Template-blue?style=flat-square&logo=github)](https://github.com/windingwind/zotero-plugin-template)
+```sh
+npm install
+npm run build
 ```
 
-## Features
+Zotero › 도구 › 플러그인 › 톱니바퀴 › **파일에서 플러그인 설치**에서 `.scaffold/build/zotero-claude-assist.xpi`를 고릅니다. 다시 빌드한 뒤에도 같은 방법으로 덮어 설치하고 Zotero를 재시작합니다.
 
-- Event-driven, functional programming, under extensive skeleton;
-- Simple and user-friendly, works out-of-the-box.
-- Abundant examples in `src/modules/examples.ts`, covering most of the commonly used APIs in plugins (using [zotero-plugin-toolkit](https://github.com/windingwind/zotero-plugin-toolkit));
-- TypeScript support:
-  - Full type definition support for the whole Zotero project, which is written in JavaScript (using [zotero-types](https://github.com/windingwind/zotero-types));
-  - Global variables and environment setup;
-- Plugin develop/build/release workflow:
-  - ⭐ [New!] Auto hot reload! Whenever the source code is modified, automatically compile and reload. [See here→](#auto-hot-reload)
-  - Automatically generate/update plugin id/version, update configrations, and set environment variables (`development` / `production`);
-  - Automatically release to GitHub;
-- Prettier and ES Lint integration.
+### 첫 설정
 
-## Examples
+Zotero › 설정 › **Claude Assist**:
 
-This repo provides examples for [zotero-plugin-toolkit](https://github.com/windingwind/zotero-plugin-toolkit) APIs.
+1. **Claude CLI 연결 테스트**: `claude` 경로·버전, 짧은 응답(`PONG`), 사용할 수 있는 모델 목록이 나오면 됩니다. 처음 실행할 때 macOS 키체인 접근 허용 창이 뜰 수 있습니다. 경로를 못 찾으면 `claude 경로`에 직접 입력합니다 (`which claude`).
+2. **Gemini**: AI Studio API 키를 입력하고 **Gemini 연결 테스트**.
 
-Search `@example` in `src/examples.ts`. The examples are called in `src/hooks.ts`.
+## 사용법
 
-### Basic Examples
+### 문맥 번역
 
-- registerNotifier
-- registerPrefs, unregisterPrefs
+PDF에서 텍스트를 선택하면 나오는 팝업의 **문맥 번역** 버튼을 누르거나, 팝업이 떠 있을 때 `Ctrl+Shift+T`를 누릅니다. 같은 페이지의 앞뒤 문장(기본 2개)을 함께 보내 문맥에 맞게 번역합니다. 앞뒤 문장을 찾지 못하면 선택한 부분만 번역하고 **문맥 미포함**을 표시합니다.
 
-### Shortcut Keys Examples
+### 컨텍스트 노트
 
-- registerShortcuts
-- exampleShortcutLargerCallback
-- exampleShortcutSmallerCallback
-- exampleShortcutConflictionCallback
+항목(또는 그 PDF)을 우클릭 › **Claude 컨텍스트 노트 생성**. 노트가 이미 있으면 메뉴가 **재생성**으로 바뀌고, 덮어쓰기 전에 확인합니다. PDF 리더를 열지 않아도 됩니다. 메모 질문이나 채팅을 처음 쓸 때 노트가 없으면 자동으로 먼저 만듭니다. 노트는 직접 고쳐도 되고, 이후 답변은 고친 내용을 기준으로 합니다.
 
-### UI Examples
+### 메모 질문
 
-![image](https://user-images.githubusercontent.com/33902321/211739774-cc5c2df8-5fd9-42f0-9cdf-0f2e5946d427.png)
+1. 하이라이트·밑줄·영역(이미지) 주석의 코멘트에 한 줄씩 `@claude 질문`을 적습니다. 한 코멘트에 여러 줄이면 각각 별개의 질문입니다.
+2. PDF 툴바의 **Claude · n** 버튼으로 채팅 창을 열고 **메모 질문 답변 (n)**을 누르거나, 채팅에 `/memos`를 입력합니다. 사이드바 **Claude (메모 질문·채팅)** 섹션의 버튼도 같습니다.
+3. 답이 도착하는 대로 질문 노트에 덧붙이고 그 줄을 `@claude ✓ 질문`으로 바꿉니다. 실패한 질문은 `@claude` 그대로 남아, 다시 실행하면 재시도됩니다.
+4. 다시 묻고 싶으면 `✓`를 지웁니다. 새 항목으로 기록되고 `(재질문)`이 붙습니다.
 
-- registerStyleSheet(the official make-it-red example)
-- registerRightClickMenuItem (uses the native `Zotero.MenuManager`, Zotero 8+)
-- registerRightClickMenuPopup
-- registerWindowMenuWithSeprator
-- registerExtraColumn
-- registerExtraColumnWithCustomCell
-- registerCustomItemBoxRow
-- registerLibraryTabPanel
-- registerReaderTabPanel
+질문 노트의 각 항목은 하이라이트 인용(클릭하면 PDF 위치로 이동) 또는 그림 → 질문 → 답변 → `p.쪽 · 날짜 · 모델 · ann:주석키#줄` 순입니다. 하이라이트에 수식이 있으면 답변 첫머리에 LaTeX로 복원해 보여줍니다. 처리 중에는 열려 있는 질문 노트 편집기가 읽기 전용이 됩니다(입력 중이던 글자를 지키기 위해).
 
-### Preference Pane Examples
+### 채팅
 
-![image](https://user-images.githubusercontent.com/33902321/211737987-cd7c5c87-9177-4159-b975-dc67690d0490.png)
+PDF 툴바의 **Claude** 버튼을 누르면 그 논문의 채팅 창이 열립니다(사이드바에도 같은 대화가 있습니다).
 
-- Preferences bindings
-- UI Events
-- Table
-- Locale
+- 첫 질문 때 논문 정보, 컨텍스트 노트, 섹션 목록, 기존 질의응답을 함께 보냅니다. 필요하면 모델이 섹션 원문 파일을 읽습니다(그 폴더 밖의 파일은 읽을 수 없게 막혀 있습니다).
+- 답변마다 **질문 노트에 저장**(`전역 질문` 항목). 채팅 화면의 수식은 `$…$` 텍스트로 보이고, 질문 노트에서는 렌더링됩니다.
+- **중지**, **새 대화**. 15분 동안 쓰지 않으면 프로세스를 끄고, 다음 질문 때 같은 대화를 이어갑니다. 대화 기록은 Zotero를 재시작해도 남습니다.
 
-See [`src/modules/preferenceScript.ts`](./src/modules/preferenceScript.ts)
+## 설정
 
-### HelperExamples
+| 항목                            | 기본값                          | 설명                              |
+| ------------------------------- | ------------------------------- | --------------------------------- |
+| Gemini API 키 / 모델 ID         | — / `gemini-3.5-flash-lite`     | 문맥 번역                         |
+| 앞뒤 문장 수                    | 2                               | 문맥 번역                         |
+| claude 경로                     | 자동 탐지                       | `~/.local/bin/claude` 등          |
+| 노트 생성 모델 / 답변·채팅 모델 | `opus` / `sonnet`               | CLI 모델 이름(alias 또는 전체 ID) |
+| 호출당 질문 수 / 이미지 수 상한 | 30 / 6                          | 넘으면 호출을 나눔                |
+| 하이라이트 앞뒤 문단 수         | 1                               | 메모 질문에 함께 보내는 주변 문단 |
+| 이전 질의응답 최대 글자 수      | 6000                            | 프롬프트에 넣는 기존 Q&A          |
+| 메모 타임아웃                   | 60초 + 질문당 30초 (최대 900초) |                                   |
+| 노트 생성 타임아웃              | 600초                           |                                   |
+| 채팅 유휴 종료                  | 15분                            |                                   |
+| 프롬프트 폴더                   | 기본 위치                       | 아래 참고                         |
 
-![image](https://user-images.githubusercontent.com/33902321/215119473-e7d0d0ef-6d96-437e-b989-4805ffcde6cf.png)
+## 프롬프트 수정
 
-- dialogExample
-- clipboardExample
-- filePickerExample
-- progressWindowExample
-- vtableExample(See Preference Pane Examples)
+설정의 **프롬프트 폴더 열기**(기본: `~/Zotero/zotero-claude-assist/prompts/`)에서 Markdown 파일을 고치면 다시 빌드하지 않아도 적용됩니다.
 
-## Quick Start Guide
+| 파일                                         | 쓰는 곳       | 적용 시점                            |
+| -------------------------------------------- | ------------- | ------------------------------------ |
+| `translate.md`                               | 문맥 번역     | 다음 번역부터                        |
+| `context-note.md` (+ `humanize-korean/*.md`) | 컨텍스트 노트 | 다음 생성부터                        |
+| `memo-batch.md` (+ `humanize-digest.md`)     | 메모 질문     | 다음 실행부터                        |
+| `sidebar-chat.md` (+ `humanize-digest.md`)   | 채팅          | 다음 메시지부터 (진행 중인 대화에도) |
 
-### 0 Requirement
+플러그인을 업데이트할 때 기본 프롬프트가 바뀌었으면, **직접 고치지 않은 파일만** 새 기본본으로 교체합니다. 고친 파일은 그대로 둡니다. 컨텍스트 노트의 메타 줄에 `프롬프트 context-note v1.1`처럼 생성에 쓴 버전이 남습니다.
 
-1. Install a beta version of Zotero: <https://www.zotero.org/support/beta_builds>
-2. Install [Node.js latest LTS version](https://nodejs.org/en/) and [Git](https://git-scm.com/)
+## 데이터 위치
 
-> [!note]
-> This guide assumes that you have an initial understanding of the basic structure and workings of the Zotero plugin. If you don't, please refer to the [documentation](https://www.zotero.org/support/dev/zotero_7_for_developers) and official plugin examples [Make It Red](https://github.com/zotero/make-it-red) first.
+Zotero 데이터 디렉터리(`~/Zotero`) 아래 `zotero-claude-assist/`:
 
-### 1 Creat Your Repo
+| 경로                                        | 내용                                 |
+| ------------------------------------------- | ------------------------------------ |
+| `prompts/`                                  | 편집 가능한 프롬프트                 |
+| `chats/<라이브러리>-<항목키>.json`          | 채팅 기록과 세션 ID                  |
+| `runs/oneshot/`                             | 단발 호출의 작업 폴더                |
+| `runs/chat-<라이브러리>-<항목키>/sections/` | 채팅용 섹션 원문 파일                |
+| `logs/activity.jsonl`                       | 활동 로그(설정 › **로그 폴더 열기**) |
 
-1. Click `Use this template`
-2. Git clone your new repo
-   <details >
-   <summary>💡 Start with GitHub Codespace</summary>
+활동 로그에는 호출마다 시간, 기능, 모델, 소요 시간, 성공 여부가 남습니다. 논문 내용, 프롬프트, 답변은 기록하지 않습니다. 실패한 호출은 CLI·API가 낸 오류 메시지 앞부분(최대 300자)도 남습니다. 1MB를 넘으면 `activity.1.jsonl`로 넘어갑니다. Claude Code도 대화마다 `~/.claude/projects/` 아래에 세션 기록을 남깁니다(채팅은 논문마다 한 폴더).
 
-   _GitHub CodeSpace_ enables you getting started without the need to download code/IDE/dependencies locally.
+## 운영 메모 (`context.md` §16)
 
-   Replace the steps above and build you first plugin in 30 seconds!
-   - Goto top of the [homepage](https://github.com/windingwind/zotero-plugin-template), click the green button `Use this template`, click `Open in codespace`. You may need to login to your GitHub account.
-   - Wait for codespace to load.
+- Gemini 무료 티어 요청은 Google 제품 개선에 쓰일 수 있습니다. 학회 리뷰 원고처럼 기밀 유지 의무가 있는 문서에서는 문맥 번역을 쓰지 마세요. Claude 쪽(Team)은 상업 약관이 적용됩니다.
+- Team 시트는 연구실 조직 계정이므로 조직의 정책과 사용량 집계가 적용됩니다.
+- 채팅과 메모 질문은 같은 Claude 구독 사용량을 쓰며, 다른 Claude Code 작업과도 한도를 공유합니다.
 
-   </details>
+## 문제 해결
 
-3. Enter the repo folder
+| 증상                               | 할 일                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| "claude CLI를 찾지 못했습니다"     | 설정에 `claude` 경로 입력 (`which claude`)                               |
+| "Claude 로그인이 필요합니다"       | 터미널에서 `claude` 실행 → `/login`                                      |
+| "사용량 한도에 도달했습니다"       | 메시지의 재설정 시각 이후 다시 시도. 실패한 메모는 `@claude` 그대로 남음 |
+| "설정한 모델을 사용할 수 없습니다" | 연결 테스트의 모델 목록에서 이름 확인                                    |
+| 타임아웃                           | 설정에서 타임아웃을 늘림                                                 |
+| 번역이 "문맥 미포함"               | 텍스트 레이어가 특이한 PDF. 선택 영역만 번역됨                           |
+| "텍스트 레이어가 없는 스캔 PDF"    | 지원하지 않음(OCR 범위 밖)                                               |
+| 그 밖의 오류                       | 활동 로그와 도움말 › 디버그 출력 기록(`[Claude Assist]`)을 확인          |
 
-### 2 Config Template Settings and Environment
+## 개발
 
-1. Modify the settings in `./package.json`, including:
-
-   ```jsonc
-   {
-     "version": "0.0.0",
-     "description": "",
-     "config": {
-       "addonName": "", // name to be displayed in the plugin manager
-       "addonID": "", // ID to avoid conflict. IMPORTANT!
-       "addonRef": "", // e.g. Element ID prefix
-       "addonInstance": "", // the plugin's root instance: Zotero.${addonInstance}
-       "prefsPrefix": "extensions.zotero.${addonRef}", // the prefix of prefs
-     },
-     "repository": {
-       "type": "git",
-       "url": "git+https://github.com/your-github-name/repo-name.git",
-     },
-     "author": "Your Name",
-     "bugs": {
-       "url": "https://github.com/your-github-name/repo-name/issues",
-     },
-     "homepage": "https://github.com/your-github-name/repo-name#readme",
-   }
-   ```
-
-   > [!warning]
-   > Be careful to set the addonID and addonRef to avoid conflict.
-
-   If you need to host your XPI packages outside of GitHub, modify `updateURL` and add `xpiDownloadLink` in `zotero-plugin.config.ts`.
-
-2. Copy the environment variable file. Modify the commands that starts your installation of the beta Zotero.
-
-   > Create a development profile (Optional)  
-   > Start the beta Zotero with `/path/to/zotero -p`. Create a new profile and use it as your development profile. Do this only once
-
-   ```sh
-   cp .env.example .env
-   vim .env
-   ```
-
-   If you are developing more than one plugin, you can store the bin path and profile path in the system environment variables, which can be omitted here.
-
-3. Install dependencies with `npm install`
-
-   > If you are using `pnpm` as the package manager for your project, you need to add `public-hoist-pattern[]=*@types/bluebird*` to `.npmrc`, see <https://github.com/windingwind/zotero-types?tab=readme-ov-file#usage>.
-
-   If you get `npm ERR! ERESOLVE unable to resolve dependency tree` with `npm install`, which is an upstream dependency bug of typescript-eslint, use the `npm i -f` command to install it.
-
-### 3 Coding
-
-Start development server with `npm start`, it will:
-
-- Prebuild the plugin in development mode
-- Start Zotero with plugin loaded from `build/`
-- Watch `src/**` and `addon/**`, rebuild and reload plugin in Zotero when source code changed.
-
-#### Auto Hot Reload
-
-Tired of endless restarting? Forget about it!
-
-1. Run `npm start`.
-2. Coding. (Yes, that's all)
-
-When file changes are detected in `src` or `addon`, the plugin will be automatically compiled and reloaded.
-
-<details style="text-indent: 2em">
-<summary>💡 Steps to add this feature to an existing plugin</summary>
-
-Please see [zotero-plugin-scaffold](https://github.com/northword/zotero-plugin-scaffold).
-
-</details>
-
-#### Debug in Zotero
-
-You can also:
-
-- Test code snippets in Tools -> Developer -> Run Javascript;
-- Debug output with `Zotero.debug()`. Find the outputs in Help->Debug Output Logging->View Output;
-- Debug UI. Zotero is built on the Firefox XUL framework. Debug XUL UI with software like [XUL Explorer](https://udn.realityripple.com/docs/Archive/Mozilla/XUL_Explorer).
-  > XUL Documentation: <http://www.devdoc.net/web/developer.mozilla.org/en-US/docs/XUL.html>
-
-### 4 Build
-
-Run `npm run build` to build the plugin in production mode. The build output will be located in the `.scaffold/build/` directory.
-
-For detailed build steps, refer to the [zotero-plugin-scaffold documentation](https://northword.github.io/zotero-plugin-scaffold/build.html). In short, the process can be divided into the following steps:
-
-- Create or clear the `build/` directory
-- Copy `addon/**` to `.scaffold/build/addon/**`
-- Replace placeholders: substitute keywords and configurations defined in `package.json`
-- Prepare localization files to avoid conflicts (see the [zotero_7_for_developers](https://www.zotero.org/support/dev/zotero_7_for_developers#avoiding_localization_conflicts) for more information):
-  - Rename `**/*.flt` to `**/${addonRef}-*.flt`
-  - Prefix each message with `addonRef-`
-  - Generate type declaration files for FTL messages
-- Prepare preferences files: prefix preference keys with `package.json#prefsPrefix` and generate type declaration files for preferences
-- Use ESBuild to compile `.ts` source code to `.js`, building from `src/index.ts` to `.scaffold/build/addon/content/scripts`
-- _(Production mode only)_ Compress the `.scaffold/build/addon` directory into `.scaffold/build/*.xpi`
-- _(Production mode only)_ Prepare `update.json` or `update-beta.json`
-
-> [!note]
->
-> **What's the difference between dev & prod?**
->
-> - This environment variable is stored in `Zotero.${addonInstance}.data.env`. The outputs to console is disabled in prod mode.
-> - You can decide what users cannot see/use based on this variable.
-> - In production mode, the build script will pack the plugin and update the `update.json`.
-
-### 5 Release
-
-To build and release, use
-
-```shell
-# version increase, git add, commit and push
-# then on ci, npm run build, and release to GitHub
-npm run release
+```sh
+npm run build        # 프롬프트 동기화 + 빌드 + 타입 검사
+npm run test:unit    # 순수 로직 단위 테스트 (Node)
+npx zotero-plugin test               # Zotero 안 통합 테스트 (임시 프로필, .env에 Zotero 경로)
+ZCA_E2E=1 npx zotero-plugin test     # 실제 Claude 호출 포함 (Haiku, 구독 사용량 소모)
+npm start            # 개발용 프로필로 Zotero 실행 (.env에 프로필 경로)
 ```
 
-> [!note]
-> This will use [Bumpp](https://github.com/antfu-collective/bumpp) to prompt for the new version number, locally bump the version, run any (pre/post)version scripts defined in `package.json`, commit, build (optional), tag the commit with the version number and push commits and git tags. Bumpp can be configured in `zotero-plugin-config.ts`; for example, add `release: { bumpp: { execute: "npm run build" } }` to also build before committing.
->
-> Subsequently GitHub Action will rebuild the plugin and use `zotero-plugin-scaffold`'s `release` script to publish the XPI to GitHub Release. In addition, a separate release (tag: `release`) will be created or updated that includes update manifests `update.json` and `update-beta.json` as assets. These will be available at `https://github.com/{{owner}}/{{repo}}/releases/download/release/update*.json`.
+- 소스: `src/llm`(CLI·Gemini), `src/pdf`(텍스트·위치·그림·섹션), `src/notes`(노트 HTML·컨텍스트 노트·질문 노트), `src/memo`, `src/chat`, `src/features`(UI)
+- 프롬프트 원본은 `prompts/`, `vendor/humanize-korean/`. 빌드 때 `addon/content/prompts/`로 복사됩니다.
+- Zotero 리더의 비공개 내부 구조(문자 데이터, 선택 영역)와 노트 편집기 내부에 의존하는 부분이 있습니다. Zotero 업데이트 후에는 `npx zotero-plugin test`를 먼저 돌려 보세요.
 
-#### About Prerelease
+## 출처
 
-The template defines `prerelease` as the beta version of the plugin, when you select a `prerelease` version in Bumpp (with `-` in the version number). The build script will create a new `update-beta.json` for prerelease use, which ensures that users of the regular version won't be able to update to the beta. Only users who have manually downloaded and installed the beta will be able to update to the next beta automatically.
-
-When the next regular release is updated, both `update.json` and `update-beta.json` will be updated (on the special `release` release, see above) so that both regular and beta users can update to the new regular release.
-
-> [!warning]
-> Strictly, distinguishing between Zotero 6 and Zotero 7 compatible plugin versions should be done by configuring `applications.zotero.strict_min_version` in `addons.__addonID__.updates[]` of `update.json` respectively, so that Zotero recognizes it properly, see <https://www.zotero.org/support/dev/zotero_7_for_developers#updaterdf_updatesjson>.
-
-## Details
-
-### About Hooks
-
-> See also [`src/hooks.ts`](https://github.com/windingwind/zotero-plugin-template/blob/main/src/hooks.ts)
-
-1. When install/enable/startup triggered from Zotero, `bootstrap.js` > `startup` is called
-   - Wait for Zotero ready
-   - Load `index.js` (the main entrance of plugin code, built from `index.ts`)
-   - Register resources if Zotero 7+
-2. In the main entrance `index.js`, the plugin object is injected under `Zotero` and `hooks.ts` > `onStartup` is called.
-   - Initialize anything you want, including notify listeners, preference panes, and UI elements.
-3. When uninstall/disabled triggered from Zotero, `bootstrap.js` > `shutdown` is called.
-   - `events.ts` > `onShutdown` is called. Remove UI elements, preference panes, or anything created by the plugin.
-   - Remove scripts and release resources.
-
-### About Global Variables
-
-> See also [`src/index.ts`](https://github.com/windingwind/zotero-plugin-template/blob/main/src/index.ts)
-
-The bootstrapped plugin runs in a sandbox, which does not have default global variables like `Zotero` or `window`, which we used to have in the overlay plugins' window environment.
-
-This template registers the following variables to the global scope:
-
-```plain
-Zotero, ZoteroPane, Zotero_Tabs, window, document, rootURI, ztoolkit, addon;
-```
-
-### Create Elements API
-
-The plugin template provides new APIs for bootstrap plugins. We have two reasons to use these APIs, instead of the `createElement/createElementNS`:
-
-- In bootstrap mode, plugins have to clean up all UI elements on exit (disable or uninstall), which is very annoying. Using the `createElement`, the plugin template will maintain these elements. Just `unregisterAll` at the exit.
-- Zotero 7 requires createElement()/createElementNS() → createXULElement() for remaining XUL elements, while Zotero 6 doesn't support `createXULElement`. The React.createElement-like API `createElement` detects namespace(xul/html/svg) and creates elements automatically, with the return element in the corresponding TS element type.
-
-```ts
-createElement(document, "div"); // returns HTMLDivElement
-createElement(document, "hbox"); // returns XUL.Box
-createElement(document, "button", { namespace: "xul" }); // manually set namespace. returns XUL.Button
-```
-
-### About Zotero API
-
-Zotero docs are outdated and incomplete. Clone <https://github.com/zotero/zotero> and search the keyword globally.
-
-> ⭐The [zotero-types](https://github.com/windingwind/zotero-types) provides most frequently used Zotero APIs. It's included in this template by default. Your IDE would provide hint for most of the APIs.
-
-A trick for finding the API you want:
-
-Search the UI label in `.xhtml`/`.flt` files, find the corresponding key in locale file. Then search this keys in `.js`/`.jsx` files.
-
-### Directory Structure
-
-This section shows the directory structure of a template.
-
-- All `.js/.ts` code files are in `./src`;
-- Addon config files: `./addon/manifest.json`;
-- UI files: `./addon/content/*.xhtml`.
-- Locale files: `./addon/locale/**/*.flt`;
-- Preferences file: `./addon/prefs.js`;
-
-```shell
-.
-|-- .github/                  # github conf
-|-- .vscode/                  # vscode conf
-|-- addon                     # static files
-|   |-- bootstrap.js
-|   |-- content
-|   |   |-- icons
-|   |   |   |-- favicon.png
-|   |   |   `-- favicon@0.5x.png
-|   |   |-- preferences.xhtml
-|   |   `-- zoteroPane.css
-|   |-- locale
-|   |   |-- en-US
-|   |   |   |-- addon.ftl
-|   |   |   |-- mainWindow.ftl
-|   |   |   `-- preferences.ftl
-|   |   `-- zh-CN
-|   |       |-- addon.ftl
-|   |       |-- mainWindow.ftl
-|   |       `-- preferences.ftl
-|   |-- manifest.json
-|   `-- prefs.js
-|-- build                         # build dir
-|-- node_modules
-|-- src                           # source code of scripts
-|   |-- addon.ts                  # base class
-|   |-- hooks.ts                  # lifecycle hooks
-|   |-- index.ts                  # main entry
-|   |-- modules                   # sub modules
-|   |   |-- examples.ts
-|   |   `-- preferenceScript.ts
-|   `-- utils                 # utilities
-|       |-- locale.ts
-|       |-- prefs.ts
-|       |-- wait.ts
-|       |-- window.ts
-|       `-- ztoolkit.ts
-|-- typings                   # ts typings
-|   `-- global.d.ts
-
-|-- .env                      # enviroment config (do not check into repo)
-|-- .env.example              # template of enviroment config, https://github.com/northword/zotero-plugin-scaffold
-|-- .gitignore                # git conf
-|-- .gitattributes            # git conf
-|-- .prettierrc               # prettier conf, https://prettier.io/
-|-- eslint.config.mjs         # eslint conf, https://eslint.org/
-|-- LICENSE
-|-- package-lock.json
-|-- package.json
-|-- tsconfig.json             # typescript conf, https://code.visualstudio.com/docs/languages/jsconfig
-|-- README.md
-`-- zotero-plugin.config.ts   # scaffold conf, https://github.com/northword/zotero-plugin-scaffold
-```
-
-## Disclaimer
-
-Use this code under AGPL. No warranties are provided. Keep the laws of your locality in mind!
-
-If you want to change the license, please contact me at <wyzlshx@foxmail.com>
+- 프로세스 실행·리더 텍스트 접근 일부는 [YufeiXIA/zotero-claude-code](https://github.com/YufeiXIA/zotero-claude-code)(MIT)를 참고했습니다.
+- 한국어 문체 규칙: `vendor/humanize-korean/` (MIT, `SOURCE.md` 참고).
+- 플러그인 골격: [windingwind/zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template).
