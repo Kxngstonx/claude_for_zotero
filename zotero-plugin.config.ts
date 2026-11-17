@@ -7,14 +7,14 @@ export default defineConfig({
   name: pkg.config.addonName,
   id: pkg.config.addonID,
   namespace: pkg.config.addonRef,
-  updateURL: `https://github.com/{{owner}}/{{repo}}/releases/download/release/${
-    pkg.version.includes("-") ? "update-beta.json" : "update.json"
-  }`,
-  xpiDownloadLink:
-    "https://github.com/{{owner}}/{{repo}}/releases/download/v{{version}}/{{xpiName}}.xpi",
+  // Personal plugin, never published. Zotero requires update_url, so the
+  // manifest points it at https://localhost (no outside traffic); the
+  // scaffold manifest step is off so it does not inject a GitHub URL.
+  // package.json `repository` is a placeholder the scaffold requires.
 
   build: {
     assets: ["addon/**/*.*"],
+    makeManifest: { enable: false },
     define: {
       ...pkg.config,
       author: pkg.author,
@@ -40,6 +40,8 @@ export default defineConfig({
   },
 
   test: {
+    // test/unit/ runs under Node (npm run test:unit); only test/zotero/ runs inside Zotero.
+    entries: "test/zotero",
     waitForPlugin: `() => Zotero.${pkg.config.addonInstance}.data.initialized`,
   },
 

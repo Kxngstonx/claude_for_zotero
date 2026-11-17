@@ -7,8 +7,21 @@
 declare namespace _ZoteroTypes {
   interface Prefs {
     PluginPrefsMap: {
-      "enable": boolean;
-      "input": string;
+      "gemini.apiKey": string;
+      "gemini.model": string;
+      "translate.contextSentences": number;
+      "claude.path": string;
+      "claude.modelNote": string;
+      "claude.modelAnswer": string;
+      "memo.maxQuestionsPerCall": number;
+      "memo.maxImagesPerCall": number;
+      "memo.surroundingParagraphs": number;
+      "qa.previousQaChars": number;
+      "chat.idleMinutes": number;
+      "timeout.memoBaseSec": number;
+      "timeout.memoPerQuestionSec": number;
+      "timeout.noteSec": number;
+      "prompts.dir": string;
     };
   }
 }

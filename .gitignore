@@ -16,3 +16,6 @@ build
 logs
 # Packages
 *.xpi
+
+# Generated from prompts/ and vendor/ by scripts/sync-prompts.mjs
+addon/content/prompts/
