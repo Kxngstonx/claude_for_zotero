@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Claude chat window for one paper. Content is built by the plugin
+     (src/features/chatWindow.ts) after load; this file only sets up layout. -->
+<html xmlns="http://www.w3.org/1999/xhtml" windowtype="claudeassist:chat">
+  <head>
+    <meta charset="utf-8" />
+    <title>Claude</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: Canvas;
+        color: CanvasText;
+        font: menu;
+        font-size: 14px;
+      }
+      #root {
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px 12px;
+      }
+      #root .zca-chat {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      button {
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

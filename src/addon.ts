@@ -20,6 +20,7 @@ import * as annotationImage from "./pdf/annotationImage";
 import * as chat from "./chat/chatSession";
 import * as sections from "./pdf/sections";
 import * as chatPanel from "./features/sidebar/chatPanel";
+import * as chatWindow from "./features/chatWindow";
 import { createZToolkit } from "./utils/ztoolkit";
 
 // Exposed as Zotero.ClaudeAssist.api for in-Zotero tests and debugging.
@@ -44,6 +45,7 @@ const api = {
   chat,
   sections,
   chatPanel,
+  chatWindow,
 };
 
 class Addon {
