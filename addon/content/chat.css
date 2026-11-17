@@ -1,0 +1,271 @@
+/* Claude Assist chat: sidebar section and chat window.
+   Colors come from Zotero's theme variables (defined by Zotero in the main
+   window; chatWindow.xhtml defines the same names for its own document). */
+
+.zca-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--fill-primary);
+}
+.zca-chat.zca-fill {
+  flex: 1;
+  min-height: 0;
+}
+.zca-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.zca-chat-head strong {
+  flex: 1;
+}
+
+/* Messages */
+.zca-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  user-select: text;
+  -moz-user-select: text;
+}
+.zca-chat.zca-fill .zca-list {
+  flex: 1;
+  min-height: 0;
+}
+.zca-chat:not(.zca-fill) .zca-list {
+  max-height: 60vh;
+}
+.zca-empty {
+  padding: 12px 0;
+  color: var(--fill-secondary);
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+.zca-turn {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--fill-quinary);
+}
+.zca-turn:last-child {
+  border-bottom: none;
+}
+.zca-q-label {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--fill-secondary);
+  margin-bottom: 3px;
+}
+.zca-q {
+  font-weight: 600;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+.zca-a {
+  line-height: 1.6;
+}
+.zca-a p,
+.zca-a ul,
+.zca-a ol {
+  margin: 0 0 0.6em;
+}
+.zca-a > :last-child {
+  margin-bottom: 0;
+}
+.zca-a h3,
+.zca-a h4,
+.zca-a h5,
+.zca-a h6 {
+  margin: 0.8em 0 0.3em;
+  font-size: 1em;
+}
+.zca-a pre.math {
+  font-family: monospace;
+  white-space: pre-wrap;
+  margin: 4px 0;
+}
+.zca-a .math {
+  font-family: monospace;
+}
+.zca-a table {
+  border-collapse: collapse;
+}
+.zca-a td,
+.zca-a th {
+  border: 1px solid var(--fill-quarternary);
+  padding: 2px 4px;
+}
+.zca-a a {
+  color: var(--accent-blue);
+}
+.zca-cite {
+  font-size: 0.72em;
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 2px;
+  color: var(--fill-secondary);
+}
+.zca-cite[data-page] {
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+.zca-cite[data-page]:hover {
+  text-decoration: underline;
+}
+.zca-notice {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--fill-quinary);
+  font-size: 0.88em;
+  color: var(--fill-secondary);
+  white-space: pre-wrap;
+}
+.zca-notice:last-child {
+  border-bottom: none;
+}
+.zca-draft-text {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.zca-draft-text::after {
+  content: "▍";
+  color: var(--fill-secondary);
+}
+
+/* Row under an answer: cited pages, save state. */
+.zca-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.85em;
+}
+.zca-label {
+  color: var(--fill-secondary);
+}
+.zca-spacer {
+  flex: 1;
+}
+.zca-chip {
+  border: none;
+  border-radius: 4px;
+  background: var(--accent-blue10);
+  color: var(--accent-blue);
+  padding: 1px 7px;
+  font: inherit;
+  cursor: pointer;
+}
+.zca-chip:hover {
+  background: var(--accent-blue30);
+}
+.zca-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent-blue);
+  cursor: pointer;
+}
+.zca-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+.zca-link:disabled {
+  color: var(--fill-tertiary);
+  cursor: default;
+}
+.zca-saved {
+  color: var(--accent-green);
+}
+.zca-btn {
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 5px;
+  background: var(--material-button);
+  color: var(--fill-primary);
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.zca-btn.zca-accent {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  font-weight: 600;
+}
+.zca-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Bottom: status, pending memo questions, composer. */
+.zca-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.zca-chat.zca-fill .zca-bottom {
+  border-top: 1px solid var(--fill-quinary);
+  padding-top: 10px;
+}
+.zca-status {
+  font-size: 0.85em;
+  color: var(--fill-secondary);
+  white-space: pre-wrap;
+}
+.zca-status:empty {
+  display: none;
+}
+.zca-status.zca-error {
+  color: var(--accent-red);
+}
+.zca-pending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88em;
+}
+.zca-pending > span {
+  flex: 1;
+  min-width: 0;
+}
+.zca-composer {
+  position: relative;
+  border: 1px solid var(--fill-quarternary);
+  border-radius: 10px;
+  background: var(--material-background);
+  padding: 8px 46px 8px 10px;
+}
+.zca-composer:focus-within {
+  border-color: var(--accent-blue);
+}
+.zca-composer textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  min-height: 2.8em;
+  max-height: 30vh;
+  padding: 0;
+}
+.zca-send {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: var(--accent-blue);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.zca-send:disabled {
+  background: var(--fill-quarternary);
+  color: var(--fill-secondary);
+  cursor: default;
+}

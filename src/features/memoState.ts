@@ -5,6 +5,7 @@
 import { errorMessage } from "../llm/claudeCli";
 import { chatSession } from "../chat/chatSession";
 import { paperItem } from "../notes/contextNote";
+import type { Place } from "../chat/chatView";
 import {
   collectPending,
   isMemoBatchRunning,
@@ -84,6 +85,8 @@ function resultNotice(st: MemoState): string {
 export function memoStatus(item: Zotero.Item): {
   running: boolean;
   pending: number;
+  /** Page of each pending question, in paper order. */
+  places: Place[];
   /** "2/5" or "…" while running, else "". */
   progress: string;
   stage: string;
@@ -91,10 +94,15 @@ export function memoStatus(item: Zotero.Item): {
 } {
   const running = isMemoBatchRunning(item);
   const st = memoState(item.id);
-  const pending = running ? 0 : collectPending(item).pending.length;
+  const list = running ? [] : collectPending(item).pending;
+  const pending = list.length;
   return {
     running,
     pending,
+    places: list.map((p) => ({
+      page: p.annotation.annotationPageLabel || "?",
+      image: p.annotation.annotationType === "image",
+    })),
     progress: running
       ? st.total !== undefined
         ? `${st.done ?? 0}/${st.total}`
