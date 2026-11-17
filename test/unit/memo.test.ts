@@ -379,3 +379,68 @@ test("normalizeAnswer: correct answers with LaTeX row breaks or real newlines ar
     assert.equal(normalizeAnswer(ok), ok);
   }
 });
+
+// ------------------------------------------------------------ figures
+
+import { figureContext, pageParagraphs } from "../../src/memo/paragraphs.ts";
+
+/** One paragraph as chars on a line at height y (PDF coords, y up). */
+function para(text: string, x: number, y: number) {
+  const words = text.split(" ");
+  const chars: any[] = [];
+  let cx = x;
+  words.forEach((w, wi) => {
+    for (const ch of w) {
+      chars.push({ c: ch, rect: [cx, y, cx + 5, y + 10] });
+      cx += 5;
+    }
+    if (wi < words.length - 1) chars[chars.length - 1].spaceAfter = true;
+    cx += 3;
+  });
+  chars[chars.length - 1].paragraphBreakAfter = true;
+  return chars;
+}
+
+test("figureContext picks nearest paragraphs above/below and the caption", () => {
+  const chars = [
+    ...para("Intro text far above.", 50, 700),
+    ...para("Text just above the figure.", 50, 600),
+    ...para("axis label", 120, 450), // inside the figure region
+    ...para("Figure 3: The NeuMF model.", 50, 330),
+    ...para("Next paragraph below.", 50, 300),
+    ...para("Other column text.", 400, 450), // no horizontal overlap
+  ];
+  const paras = pageParagraphs(chars);
+  assert.equal(paras.length, 6);
+  assert.equal(paras[3].text, "Figure 3: The NeuMF model.");
+  const region = [40, 350, 360, 580];
+  assert.equal(
+    figureContext(paras, region, 1),
+    "Text just above the figure.\n\nFigure 3: The NeuMF model.",
+  );
+  assert.equal(
+    figureContext(paras, region, 2),
+    "Intro text far above.\n\nText just above the figure.\n\nFigure 3: The NeuMF model.\n\nNext paragraph below.",
+  );
+  // n = 0 still keeps a close caption
+  assert.equal(figureContext(paras, region, 0), "Figure 3: The NeuMF model.");
+  assert.equal(figureContext(paras, [600, 0, 700, 10], 1), null);
+});
+
+test("figure labels running into the caption are excluded from context", () => {
+  // one paragraph from the bar labels (inside the region) into the caption
+  const labels = para("Alpha Beta Gamma", 120, 455);
+  delete labels[labels.length - 1].paragraphBreakAfter;
+  labels[labels.length - 1].lineBreakAfter = true;
+  const chars = [
+    ...para("Intro above.", 50, 700),
+    ...labels,
+    ...para("Figure 1: Final accuracy.", 50, 420),
+  ];
+  const region = [80, 448, 530, 665];
+  const paras = pageParagraphs(chars, region);
+  assert.equal(
+    figureContext(paras, region, 1),
+    "Intro above.\n\nFigure 1: Final accuracy.",
+  );
+});

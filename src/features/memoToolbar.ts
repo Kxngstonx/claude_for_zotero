@@ -60,21 +60,18 @@ function update(button: HTMLButtonElement) {
     button.disabled = true;
     return;
   }
-  const { pending, skippedImages } = collectPending(item);
-  const images = skippedImages
-    ? ` (그림 질문 ${skippedImages}개는 아직 지원하지 않음)`
-    : "";
+  const { pending } = collectPending(item);
   if (pending.length) {
     button.textContent = `Claude 메모 ${pending.length}`;
-    button.title = `대기 중인 @claude 질문 ${pending.length}개에 답합니다${images}`;
+    button.title = `대기 중인 @claude 질문 ${pending.length}개에 답합니다`;
     button.disabled = !item.library.editable;
   } else if (findQaNote(item)) {
     button.textContent = "질문 노트";
-    button.title = `대기 중인 질문이 없습니다. Claude 질문 노트를 엽니다${images}`;
+    button.title = `대기 중인 질문이 없습니다. Claude 질문 노트를 엽니다`;
     button.disabled = false;
   } else {
     button.textContent = "Claude 메모";
-    button.title = `대기 중인 @claude 질문이 없습니다${images}`;
+    button.title = `대기 중인 @claude 질문이 없습니다`;
     button.disabled = true;
   }
 }

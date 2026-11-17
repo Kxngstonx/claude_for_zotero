@@ -5,7 +5,9 @@
 // typed in the editor just before our append was lost. So while a batch runs,
 // every open editor showing the Q&A note is:
 //   1. flushed: its unsaved content is saved (EditorInstance.saveSync) and we
-//      wait until that save is in the database,
+//      wait until that save is in the database; the old instance then stops
+//      saving (_disableSaving), so a late debounced update cannot overwrite
+//      later appends,
 //   2. reloaded read-only (note-editor element: mode = "view", initEditor()),
 //   3. reloaded now and then so new answers show up (a read-only editor
 //      ignores external changes; throttled so the view does not jump on
@@ -78,13 +80,24 @@ function openEditors(
   return out;
 }
 
+/** Waits until no database transaction is running (editor saves queue there). */
+export async function dbIdle(
+  until = Date.now() + FLUSH_TIMEOUT_MS,
+): Promise<void> {
+  while (Zotero.DB.inTransaction() && Date.now() < until) {
+    await (Zotero.DB as any).waitForTransaction(); // id is optional (debug only)
+    await Zotero.Promise.delay(20);
+  }
+}
+
 function currentHtml(noteID: number): string {
   const note = Zotero.Items.get(noteID);
   return note ? note.getNote() : "";
 }
 
 /** Saves the editor's unsaved content and waits until it is in the database. */
-async function flush(inst: any, noteID: number): Promise<void> {
+/** True if nothing was unsaved or the save is confirmed in the database. */
+async function flush(inst: any, noteID: number): Promise<boolean> {
   let pending: string | null = null;
   try {
     pending =
@@ -93,22 +106,25 @@ async function flush(inst: any, noteID: number): Promise<void> {
     // editor not ready
   }
   const before = currentHtml(noteID);
-  if (pending === null || pending === before) return; // nothing unsaved
+  if (pending === null || pending === before) return true; // nothing unsaved
   try {
     inst.saveSync();
   } catch (e) {
     Zotero.debug(`[Claude Assist] note flush failed: ${e}`);
-    return;
+    return false;
   }
   const until = Date.now() + FLUSH_TIMEOUT_MS;
   while (Date.now() < until) {
     await Zotero.Promise.delay(50);
-    const now = currentHtml(noteID);
-    if (now !== before) return;
+    if (currentHtml(noteID) !== before) {
+      await dbIdle(until);
+      return true;
+    }
   }
   Zotero.debug(
     `[Claude Assist] note flush not confirmed within ${FLUSH_TIMEOUT_MS} ms`,
   );
+  return false;
 }
 
 /**
@@ -121,7 +137,15 @@ export async function lockNoteEditors(noteID: number): Promise<void> {
   locked.set(noteID, set);
   for (const { inst, el } of openEditors(noteID)) {
     if (el.mode !== "edit" || !showsNote(el, noteID)) continue;
-    await flush(inst, noteID);
+    // Locking reloads the editor from the database: if the typed text is not
+    // confirmed saved, leave this editor editable rather than lose it (our
+    // append verifies itself against concurrent saves).
+    if (!(await flush(inst, noteID))) continue;
+    // initEditor() below replaces this instance, but the old one keeps
+    // listening: the editor's debounced update from recent typing would make
+    // it save its stale copy over our next append. Its content is flushed, so
+    // it must not save again (EditorInstance checks _disableSaving).
+    inst._disableSaving = true;
     set.add(el);
     el.mode = "view";
     await el.initEditor();

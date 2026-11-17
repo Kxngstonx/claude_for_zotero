@@ -13,6 +13,9 @@ import { noteHtmlToText } from "../notes/noteText";
 import {
   annotationQuoteHtml,
   appendQaEntry,
+  ensureQaNote,
+  importFigure,
+  removeUnusedFigure,
   findQaNote,
   previousQa,
 } from "../notes/qaNote";
@@ -31,9 +34,11 @@ import {
   type MemoQuestion,
   type QuestionKind,
 } from "../memo/batch";
+import { annotationPng, imageForModel } from "../pdf/annotationImage";
 import {
   annotationSurrounding,
   closeTabs,
+  figureSurrounding,
   type PagesCache,
   type Surrounding,
 } from "../pdf/annotationContext";
@@ -55,8 +60,6 @@ export interface MemoBatchResult {
   failures: MemoFailure[];
   /** Answered and saved, but the memo line could not be marked ✓. */
   warnings: MemoFailure[];
-  /** Image questions found but not handled in this milestone (M4). */
-  skippedImages: number;
   qaNoteID: number | null;
 }
 
@@ -66,7 +69,8 @@ export interface MemoBatchHooks {
   killAfterAnswers?: number;
 }
 
-const TEXT_KINDS = new Set(["highlight", "underline"]);
+// highlight/underline: text questions; image: figure questions (§9.1, M4).
+const QUESTION_KINDS = new Set(["highlight", "underline", "image"]);
 
 interface Pending {
   annotation: Zotero.Item;
@@ -76,12 +80,8 @@ interface Pending {
 }
 
 /** Pending questions of all PDF attachments, in paper order (§9.2 step 2). */
-export function collectPending(item: Zotero.Item): {
-  pending: Pending[];
-  skippedImages: number;
-} {
+export function collectPending(item: Zotero.Item): { pending: Pending[] } {
   const pending: Pending[] = [];
-  let skippedImages = 0;
   for (const id of item.getAttachments()) {
     const attachment = Zotero.Items.get(id);
     if (!attachment || !attachment.isPDFAttachment()) continue;
@@ -96,15 +96,11 @@ export function collectPending(item: Zotero.Item): {
     for (const annotation of anns) {
       const qs = pendingQuestions(annotation.annotationComment);
       if (!qs.length) continue;
-      if (annotation.annotationType === "image") {
-        skippedImages += qs.length;
-        continue;
-      }
-      if (!TEXT_KINDS.has(annotation.annotationType)) continue;
+      if (!QUESTION_KINDS.has(annotation.annotationType)) continue;
       for (const q of qs) pending.push({ annotation, attachment, ...q });
     }
   }
-  return { pending, skippedImages };
+  return { pending };
 }
 
 // One batch per paper at a time.
@@ -138,13 +134,12 @@ export async function runMemoBatch(
     }
   };
   try {
-    const { pending, skippedImages } = collectPending(item);
+    const { pending } = collectPending(item);
     const result: MemoBatchResult = {
       total: pending.length,
       answered: 0,
       failures: [],
       warnings: [],
-      skippedImages,
       qaNoteID: findQaNote(item)?.id ?? null,
     };
     if (!pending.length) return result;
@@ -160,17 +155,67 @@ export async function runMemoBatch(
       ),
     );
 
-    ui.stage("하이라이트 주변 문단 준비 중…");
+    const fail = (
+      q: Pick<MemoQuestion, "question" | "pageLabel">,
+      reason: string,
+    ) =>
+      result.failures.push({
+        question: q.question,
+        pageLabel: q.pageLabel,
+        reason,
+      });
+
+    const warn = (
+      q: Pick<MemoQuestion, "question" | "pageLabel">,
+      reason: string,
+    ) =>
+      result.warnings.push({
+        question: q.question,
+        pageLabel: q.pageLabel,
+        reason,
+      });
+
+    ui.stage("하이라이트·그림 주변 문단 준비 중…");
     const n = Math.max(0, Number(getPref("memo.surroundingParagraphs")) || 0);
     const questions: MemoQuestion[] = [];
     const byRef = new Map<string, Pending>();
     const surroundings = new Map<string, Surrounding>();
     const pagesCache: PagesCache = new Map();
+    // Figure PNG per annotation key: sent to the model and embedded in the note.
+    const figures = new Map<string, Uint8Array | null>();
+    // Embedded figure attachment per annotation key, shared by its questions.
+    const figureKeys = new Map<string, string>();
+    const modelImages = new Map<string, { mediaType: string; data: string }>();
     for (const p of pending) {
       const pos = JSON.parse(p.annotation.annotationPosition || "{}");
+      const pageLabel =
+        p.annotation.annotationPageLabel || String((pos.pageIndex ?? 0) + 1);
+      const isImage = p.annotation.annotationType === "image";
+      if (isImage) {
+        // One render per figure; a failure fails only this figure's questions.
+        if (!figures.has(p.annotation.key)) {
+          let png: Uint8Array | null = null;
+          try {
+            png = await annotationPng(p.annotation);
+            if (png)
+              modelImages.set(p.annotation.key, await imageForModel(png));
+          } catch (e) {
+            Zotero.debug(`[Claude Assist] figure ${p.annotation.key}: ${e}`);
+            png = null;
+          }
+          figures.set(p.annotation.key, png);
+        }
+        if (!figures.get(p.annotation.key)) {
+          fail(
+            { question: p.question, pageLabel },
+            "그림(영역) 이미지를 렌더링하지 못했습니다.",
+          );
+          continue;
+        }
+      }
       let sur = surroundings.get(p.annotation.key);
       if (!sur) {
-        sur = await annotationSurrounding(
+        sur = await (isImage ? figureSurrounding : annotationSurrounding)(
           p.annotation,
           p.attachment,
           n,
@@ -188,12 +233,12 @@ export async function runMemoBatch(
         line: p.line,
         question: p.question,
         kind: p.annotation.annotationType as QuestionKind,
-        pageLabel:
-          p.annotation.annotationPageLabel || String((pos.pageIndex ?? 0) + 1),
+        pageLabel,
         pageIndex: pos.pageIndex ?? 0,
         highlight: p.annotation.annotationText || "",
         surrounding: sur.text,
         approx: sur.approx,
+        image: isImage ? modelImages.get(p.annotation.key) : undefined,
       });
     }
     closeTabs(opened);
@@ -210,20 +255,6 @@ export async function runMemoBatch(
     await lock();
     ui.progress(0, questions.length);
 
-    const fail = (q: MemoQuestion, reason: string) =>
-      result.failures.push({
-        question: q.question,
-        pageLabel: q.pageLabel,
-        reason,
-      });
-
-    const warn = (q: MemoQuestion, reason: string) =>
-      result.warnings.push({
-        question: q.question,
-        pageLabel: q.pageLabel,
-        reason,
-      });
-
     // Appends one answer (throws if that fails), then marks the memo line.
     // A marking problem is a warning: the answer is already saved.
     const commit = async (
@@ -234,22 +265,41 @@ export async function runMemoBatch(
       const p = byRef.get(q.ref)!;
       await lock(); // editors opened since the last answer
       const before = findQaNote(item)?.getNote() ?? "";
-      const note = await appendQaEntry(
-        item,
-        qaEntryHtml({
-          quoteHtml: await annotationQuoteHtml(p.annotation),
-          question: q.question,
-          answerMarkdown: answer,
-          meta: {
-            pageLabel: q.pageLabel,
-            date: new Date(),
-            model: usedModel,
-            annotationKey: q.annotationKey,
-            line: q.line,
-            reasked: hasAnnRef(before, q.annotationKey, q.line),
-          },
-        }),
-      );
+      const png = figures.get(q.annotationKey);
+      // A figure is embedded as an image attachment of the note, so the note
+      // must exist first. Imported once per figure; undone if unused.
+      let imageKey = figureKeys.get(q.annotationKey);
+      let imported: { note: Zotero.Item; key: string } | null = null;
+      if (png && !imageKey) {
+        const qa = await ensureQaNote(item);
+        imageKey = await importFigure(png, qa);
+        imported = { note: qa, key: imageKey };
+      }
+      const quoteHtml = await annotationQuoteHtml(p.annotation, imageKey);
+      let note: Zotero.Item;
+      try {
+        note = await appendQaEntry(
+          item,
+          qaEntryHtml({
+            quoteHtml,
+            question: q.question,
+            answerMarkdown: answer,
+            meta: {
+              pageLabel: q.pageLabel,
+              date: new Date(),
+              model: usedModel,
+              annotationKey: q.annotationKey,
+              line: q.line,
+              reasked: hasAnnRef(before, q.annotationKey, q.line),
+            },
+          }),
+        );
+      } catch (e) {
+        if (imported)
+          await removeUnusedFigure(imported.note, imported.key).catch(() => {});
+        throw e;
+      }
+      if (imported) figureKeys.set(q.annotationKey, imported.key);
       result.qaNoteID = note.id;
       lockedNotes.add(note.id);
       try {

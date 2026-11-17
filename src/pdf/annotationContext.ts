@@ -13,6 +13,8 @@ import { pdfPages } from "./fullText";
 import {
   approxContext,
   charRangeInRects,
+  figureContext,
+  pageParagraphs,
   paragraphContext,
 } from "../memo/paragraphs";
 
@@ -118,19 +120,7 @@ export async function annotationSurrounding(
   }
 
   // Fallback must not abort the batch (scanned PDF, worker failure).
-  let pages: string[] = [];
-  try {
-    let p = pagesCache.get(attachment.id);
-    if (!p) {
-      p = pdfPages(attachment).then((r) => r.pages);
-      pagesCache.set(attachment.id, p);
-    }
-    pages = await p;
-  } catch (e) {
-    Zotero.debug(
-      `[Claude Assist] page text failed for ${attachment.key}: ${e}`,
-    );
-  }
+  const pages = await cachedPages(attachment, pagesCache);
   const page = pages[pageIndex] ?? "";
   const hit = highlight ? findText(page, highlight) : null;
   const mid = Math.floor(page.length / 2);
@@ -140,4 +130,59 @@ export async function annotationSurrounding(
       : approxContext(page, mid, mid, 800),
     approx: true,
   };
+}
+
+async function cachedPages(
+  attachment: Zotero.Item,
+  pagesCache: PagesCache,
+): Promise<string[]> {
+  try {
+    let p = pagesCache.get(attachment.id);
+    if (!p) {
+      p = pdfPages(attachment).then((r) => r.pages);
+      pagesCache.set(attachment.id, p);
+    }
+    return await p;
+  } catch (e) {
+    Zotero.debug(
+      `[Claude Assist] page text failed for ${attachment.key}: ${e}`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Text around an image annotation's region: the caption and the nearest
+ * paragraphs above and below (reader chars). Fallback: the start of the
+ * page's text, flagged approx.
+ */
+export async function figureSurrounding(
+  annotation: Zotero.Item,
+  attachment: Zotero.Item,
+  n: number,
+  opened: Set<string>,
+  pagesCache: PagesCache = new Map(),
+): Promise<Surrounding> {
+  const position = JSON.parse(annotation.annotationPosition || "{}");
+  const pageIndex: number = position.pageIndex ?? 0;
+  const region: number[] | undefined = position.rects?.[0];
+  try {
+    const reader = region ? await readerFor(attachment, opened) : null;
+    for (const view of reader ? views(reader) : []) {
+      const chars = await pageChars(view, pageIndex);
+      if (!chars) continue;
+      const text = figureContext(
+        pageParagraphs(chars as any, region),
+        region!,
+        n,
+      );
+      if (text) return { text, approx: false };
+    }
+  } catch (e) {
+    Zotero.debug(
+      `[Claude Assist] figure context failed for ${annotation.key}: ${e}`,
+    );
+  }
+  const page = (await cachedPages(attachment, pagesCache))[pageIndex] ?? "";
+  return { text: approxContext(page, 0, 0, 1600), approx: true };
 }
