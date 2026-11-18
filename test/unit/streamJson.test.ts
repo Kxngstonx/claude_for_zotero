@@ -188,3 +188,81 @@ test("resetTime keeps parentheses and dotted dates", () => {
   assert.equal(resetTime("weekly limit · resets Nov. 20."), "Nov. 20");
   assert.equal(resetTime("no time here"), null);
 });
+
+const textEvent = (text: string) => ({
+  type: "stream_event",
+  event: { type: "content_block_delta", delta: { type: "text_delta", text } },
+});
+const okResult = { type: "result", subtype: "success", is_error: false };
+
+test("TurnCollector drops retracted text on a refusal fallback", () => {
+  const c = new TurnCollector();
+  c.add(textEvent("## 1 Summary\n2"));
+  c.add({
+    type: "system",
+    subtype: "model_refusal_fallback",
+    trigger: "refusal",
+    direction: "retry",
+    original_model: "claude-opus-5-5",
+    fallback_model: "claude-sonnet-5-5",
+    api_refusal_category: "cyber",
+  });
+  // The refused message may arrive after the fallback started.
+  c.add({
+    type: "assistant",
+    message: { model: "claude-opus-5-5", stop_reason: "refusal", content: [] },
+  });
+  c.add(textEvent("fallback answer"));
+  c.add(okResult);
+  assert.equal(c.text, "fallback answer");
+  assert.equal(c.model, "claude-sonnet-5-5");
+  assert.deepEqual(c.refusalFallback, {
+    from: "claude-opus-5-5",
+    to: "claude-sonnet-5-5",
+  });
+  assert.equal(c.refusalCategory, "cyber");
+  assert.equal(c.error(), null);
+});
+
+test("TurnCollector reports a refusal without fallback", () => {
+  const c = new TurnCollector();
+  c.add(textEvent("partial"));
+  c.add({
+    type: "system",
+    subtype: "model_refusal_no_fallback",
+    original_model: "claude-opus-5-5",
+    api_refusal_category: "bio",
+  });
+  c.add(okResult);
+  assert.deepEqual(c.error(), { kind: "refusal", message: "bio" });
+});
+
+test("TurnCollector reports a refused final message", () => {
+  const c = new TurnCollector();
+  c.add({
+    type: "assistant",
+    message: {
+      model: "claude-opus-5-5",
+      stop_reason: "refusal",
+      stop_details: { category: "cyber" },
+      content: [],
+    },
+  });
+  c.add(okResult);
+  assert.equal(c.error()?.kind, "refusal");
+  assert.match(claudeErrorText("refusal", "cyber"), /안전 필터.*cyber/);
+});
+
+test("TurnCollector counts Read calls", () => {
+  const c = new TurnCollector();
+  c.add({
+    type: "assistant",
+    message: {
+      content: [
+        { type: "tool_use", name: "Read", input: {} },
+        { type: "text", text: "x" },
+      ],
+    },
+  });
+  assert.equal(c.reads, 1);
+});

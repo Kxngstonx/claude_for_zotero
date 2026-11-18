@@ -14,6 +14,7 @@ export type ClaudeErrorKind =
   | "limit" // usage limit / rate limit / billing
   | "model" // unknown model
   | "timeout"
+  | "refusal" // Anthropic's safety classifier stopped the output
   | "other";
 
 /** Splits a byte stream into complete lines. */
@@ -88,6 +89,18 @@ export class TurnCollector {
   assistantError: string | null = null;
   rateLimited = false;
   result: any | null = null;
+  /**
+   * The safety classifier stopped the output and the CLI retried with a
+   * fallback model (system/model_refusal_fallback, claude 2.1.327). The
+   * refused output is retracted: `text` restarts with the fallback's output.
+   */
+  refusalFallback: { from: string; to: string } | null = null;
+  /** The output was refused and no retry ran (or the retry was refused). */
+  refused = false;
+  /** Refusal category reported by the API ("cyber", "bio", …), if any. */
+  refusalCategory: string | null = null;
+  /** Read tool calls made in this turn. */
+  reads = 0;
 
   add(ev: any): string | null {
     if (!ev || typeof ev !== "object") return null;
@@ -97,11 +110,38 @@ export class TurnCollector {
         if (ev.subtype === "init") {
           if (ev.session_id) this.sessionId = ev.session_id;
           if (ev.model) this.model = String(ev.model);
+        } else if (ev.subtype === "model_refusal_fallback") {
+          this.refusalCategory ??= ev.api_refusal_category ?? null;
+          this.refusalFallback = {
+            from: String(ev.original_model ?? ""),
+            to: String(ev.fallback_model ?? ""),
+          };
+          if (ev.fallback_model) this.model = String(ev.fallback_model);
+          this.text = "";
+          this.refused = false; // the retry decides
+        } else if (ev.subtype === "model_refusal_no_fallback") {
+          this.refusalCategory ??= ev.api_refusal_category ?? null;
+          this.refused = true;
         }
         return null;
-      case "assistant":
+      case "assistant": {
         if (ev.error) this.assistantError = String(ev.error);
+        const m = ev.message;
+        // The refused message of the first model may arrive after the
+        // fallback started; only a refusal of the current model counts.
+        const retracted =
+          this.refusalFallback && m?.model === this.refusalFallback.from;
+        if (m?.stop_reason === "refusal" && !retracted) {
+          this.refused = true;
+          this.refusalCategory ??= m.stop_details?.category ?? null;
+        }
+        if (Array.isArray(m?.content)) {
+          for (const b of m.content) {
+            if (b?.type === "tool_use" && b.name === "Read") this.reads++;
+          }
+        }
         return null;
+      }
       case "rate_limit_event":
         if (ev.rate_limit_info?.status === "rejected") this.rateLimited = true;
         return null;
@@ -132,6 +172,9 @@ export class TurnCollector {
   error(): { kind: ClaudeErrorKind; message: string } | null {
     const r = this.result;
     if (!r) return null;
+    if (this.refused) {
+      return { kind: "refusal", message: this.refusalCategory ?? "" };
+    }
     if (!r.is_error && !this.assistantError) return null;
     const message =
       (typeof r.result === "string" && r.result) ||
@@ -181,6 +224,8 @@ export function claudeErrorText(
     }
     case "model":
       return `설정한 모델을 사용할 수 없습니다. 설정 › Claude Assist의 모델 이름을 확인하세요 ("Claude CLI 연결 테스트"로 사용 가능한 목록을 볼 수 있습니다).${tail}`;
+    case "refusal":
+      return `Anthropic 안전 필터가 출력 생성을 중간에 멈췄습니다${detail ? ` (분류: ${detail})` : ""}. 논문 내용의 일부가 위험한 내용으로 분류된 경우로, 같은 입력으로 다시 시도해도 결과가 같을 가능성이 높습니다.`;
     case "timeout":
       return `${detail || "시간 안에 끝나지 않았습니다."} (메모 질문·컨텍스트 노트의 타임아웃은 설정 › Claude Assist에서 바꿀 수 있습니다.)`;
     default:

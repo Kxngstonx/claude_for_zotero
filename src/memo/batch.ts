@@ -174,6 +174,15 @@ export class AnswerStream {
     return rest ? this.take(rest) : [];
   }
 
+  /**
+   * The output so far was retracted (safety-classifier stop, then a fallback
+   * model starts over): drop the unfinished line. Answers already taken stay
+   * taken; the fallback's answers for those ids are ignored.
+   */
+  retract(): void {
+    this.lines.flush();
+  }
+
   missing(): string[] {
     return [...this.ids].filter((id) => !this.seen.has(id));
   }

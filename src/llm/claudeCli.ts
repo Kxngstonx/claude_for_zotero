@@ -180,6 +180,12 @@ export interface RunOnceOptions {
   timeoutSec: number;
   /** Called with each streamed text chunk. */
   onText?: (delta: string) => void;
+  /**
+   * Called when the text streamed so far is retracted (safety-classifier
+   * stop, then a fallback model starts over). Later onText calls carry the
+   * fallback's output.
+   */
+  onRetract?: () => void;
   /** Called once with the resolved model id (from system/init). */
   onModel?: (model: string) => void;
   /** Called after the process starts with a function that kills it. */
@@ -195,23 +201,37 @@ export interface RunOnceResult {
   sessionId: string | null;
   /** Resolved model id reported by the CLI, or null. */
   model: string | null;
+  /**
+   * Set when the safety classifier stopped the first model's output and the
+   * CLI retried with a fallback model; `text` is the fallback's output only.
+   */
+  refusalFallback: { from: string; to: string } | null;
+  refusalCategory: string | null;
 }
 
 /**
- * One turn, no tools. Rejects with ClaudeError. On timeout the process is
+ * One turn, no tools. Rejects with ClaudeError (kind "refusal" when the
+ * safety classifier stopped the output and no retry produced one). On timeout the process is
  * killed; text already passed to onText stays delivered.
  */
 export function runOnce(o: RunOnceOptions): Promise<RunOnceResult> {
+  // Filled in by runOnceInner (Read calls, refusals) before it is logged.
+  const detail: Record<string, string | number | boolean> = {
+    ...o.logDetail,
+  };
   return serialize(() =>
     logged(
-      { feature: o.feature, model: o.model, detail: o.logDetail },
-      () => runOnceInner(o),
+      { feature: o.feature, model: o.model, detail },
+      () => runOnceInner(o, detail),
       (r) => r.model,
     ),
   );
 }
 
-async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
+async function runOnceInner(
+  o: RunOnceOptions,
+  detail: Record<string, string | number | boolean>,
+): Promise<RunOnceResult> {
   const bin = await requireClaude();
   const dir = oneShotRunDir();
   await IOUtils.makeDirectory(dir, { createAncestors: true });
@@ -240,7 +260,9 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
   const lines = new LineBuffer();
   let modelReported = false;
   const handle = (line: string) => {
+    const fallbackBefore = turn.refusalFallback;
     const d = turn.add(parseJsonLine(line));
+    if (turn.refusalFallback !== fallbackBefore) o.onRetract?.();
     if (!modelReported && turn.model) {
       modelReported = true;
       o.onModel?.(turn.model);
@@ -267,6 +289,12 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
     clearTimeout(timer);
   }
 
+  if (turn.reads) detail.reads = turn.reads;
+  if (turn.refusalFallback) {
+    detail.refusalFallback = `${turn.refusalFallback.from} → ${turn.refusalFallback.to}`;
+  }
+  if (turn.refusalCategory) detail.refusalCategory = turn.refusalCategory;
+
   if (timedOut) {
     throw new ClaudeError(
       "timeout",
@@ -285,6 +313,8 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
     text: turn.finalText(),
     sessionId: turn.sessionId,
     model: turn.model,
+    refusalFallback: turn.refusalFallback,
+    refusalCategory: turn.refusalCategory,
   };
 }
 

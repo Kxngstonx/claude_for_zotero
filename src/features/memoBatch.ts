@@ -378,6 +378,7 @@ export async function runMemoBatch(
           onModel: (m) => (usedModel = m),
           onStart: (k) => (kill = k),
           onText: (d) => take(stream.push(d)),
+          onRetract: () => stream.retract(),
         });
       } catch (e) {
         error = e;

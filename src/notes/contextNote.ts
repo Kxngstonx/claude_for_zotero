@@ -3,7 +3,7 @@
 
 import { getPref } from "../utils/prefs";
 import { composePrompt, loadPrompt } from "../prompts";
-import { runOnce } from "../llm/claudeCli";
+import { ClaudeError, runOnce } from "../llm/claudeCli";
 import { paperPdf, pdfBodyText } from "../pdf/fullText";
 import {
   CONTEXT_TAG,
@@ -118,6 +118,12 @@ async function generate(
       onProgress?.("model", `${model} · ${received.toLocaleString()}자 수신`);
     },
   });
+  // A note continued by a fallback model after a safety-classifier stop is
+  // not saved: the retracted part is gone, and what follows was a refusal
+  // message in practice (MineGrad, 2026-11-18).
+  if (res.refusalFallback) {
+    throw new ClaudeError("refusal", res.refusalCategory ?? "");
+  }
   const markdown = res.text.trim();
   if (!markdown) throw new Error("모델이 빈 노트를 반환했습니다.");
 

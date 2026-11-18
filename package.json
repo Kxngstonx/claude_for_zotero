@@ -1,7 +1,7 @@
 {
   "name": "zotero-claude-assist",
   "type": "module",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Claude & Gemini reading assistant for Zotero (personal use)",
   "config": {
     "addonName": "Zotero Claude Assist",
