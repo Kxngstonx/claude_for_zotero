@@ -44,10 +44,14 @@ export function parseHistory(json: string | null): ChatHistory {
 
 export interface Preamble {
   paperMeta: string;
+  /** Empty when there is none (generation refused). */
   contextNote: string;
   documentMap: string;
   previousQa: string;
 }
+
+export const NO_CONTEXT_NOTE =
+  "(none: not available for this paper; read the section files)";
 
 /**
  * The fixed block before the first message of a session (§10.3), followed by
@@ -56,7 +60,7 @@ export interface Preamble {
 export function firstTurnText(p: Preamble, userText: string): string {
   return [
     `<paper_meta>\n${p.paperMeta}\n</paper_meta>`,
-    `<context_note>\n${neutralizeTags(p.contextNote)}\n</context_note>`,
+    `<context_note>\n${p.contextNote.trim() ? neutralizeTags(p.contextNote) : NO_CONTEXT_NOTE}\n</context_note>`,
     `<document_map>\n${p.documentMap}\n</document_map>`,
     `<previous_qa>\n${neutralizeTags(p.previousQa)}\n</previous_qa>`,
     userText,

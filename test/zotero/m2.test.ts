@@ -58,6 +58,34 @@ describe("M2", function () {
     assert.equal(api().contextNote.findContextNote(item).id, newer.id);
   });
 
+  it("designates a hand-written note as the only context note", async function () {
+    const { item } = await paperWithPdf("Designated note");
+    const generated = await taggedNote(item, "generated");
+    const manual = new Zotero.Item("note");
+    manual.libraryID = item.libraryID;
+    manual.parentID = item.id;
+    manual.setNote(
+      `<div data-schema-version="9"><h1>Claude 컨텍스트 노트 — from claude.ai</h1></div>`,
+    );
+    await manual.saveTx();
+    await api().contextNote.designateContextNote(manual);
+    assert.isTrue(manual.hasTag("claude-context"));
+    assert.isFalse(
+      Zotero.Items.get(generated.id).hasTag("claude-context"),
+      "the other context note loses the tag",
+    );
+    assert.equal(api().contextNote.findContextNote(item).id, manual.id);
+    const top = new Zotero.Item("note");
+    await top.saveTx();
+    let threw = false;
+    try {
+      await api().contextNote.designateContextNote(top);
+    } catch {
+      threw = true;
+    }
+    assert.isTrue(threw, "a standalone note has no paper");
+  });
+
   it("menu label switches to 재생성 when a context note exists", async function () {
     const { item } = await paperWithPdf("Menu label");
     const win = Zotero.getMainWindow();

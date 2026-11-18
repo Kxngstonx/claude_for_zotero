@@ -4,6 +4,7 @@
 // @ts-nocheck
 export type FluentMessageId =
   | 'menu-context-note'
+  | 'menu-context-note-designate'
   | 'pref-chat-idle'
   | 'pref-claude-model-answer'
   | 'pref-claude-model-note'
