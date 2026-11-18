@@ -293,7 +293,7 @@ Body: { systemInstruction: {parts:[{text: <prompts/translate.md>}]},
 ### 10.2 세션
 
 - 논문당 하나의 대화. stream-json 입출력으로 `claude` 프로세스를 살려두고, 유휴 15분(설정 가능) 후 종료한다. 다음 메시지에서 `--resume <sessionId>`로 재개한다 `[확인됨: zotero-claude-code 동작 방식]`. 세션 ID와 대화 기록은 플러그인 데이터 디렉터리에 저장한다.
-- 응답은 `--include-partial-messages`로 스트리밍해 보여준다. 마크다운은 §8.1의 안전 원칙으로 렌더링한다(채팅 화면은 `textContent`로만 삽입). 채팅 화면의 수식 조판은 범위 밖이다. 수식이 중요한 답은 질문 노트에 저장해서 보면 된다.
+- 응답은 `--include-partial-messages`로 스트리밍해 보여준다. 마크다운은 §8.1의 안전 원칙으로 렌더링한다(채팅 화면은 `textContent`로만 삽입). 채팅 화면의 수식(`$…$`, `$$…$$`)은 KaTeX로 MathML로 조판한다(번역 팝업과 같은 경로, `trust` 꺼짐).
 
 ### 10.3 컨텍스트와 섹션 읽기
 
@@ -301,6 +301,8 @@ Body: { systemInstruction: {parts:[{text: <prompts/translate.md>}]},
 - 컨텍스트 노트 생성이 거부되면 `<context_note>`에 "none"을 넣고 섹션 파일만으로 답한다. 대화에는 그 질문 앞에 안내 notice를 남긴다. 이미 시작한 대화는 고정 블록을 다시 보내지 않으므로, 노트를 지정한 뒤에는 새 대화를 시작해야 반영된다.
 - 섹션 원문 읽기: 대화 시작 시 실행 디렉터리에 섹션별 텍스트 파일을 만든다(`sections/s3_Method_p4-6.md` 등). `--allowedTools Read`, cwd를 그 디렉터리로 두고, 모델이 필요할 때 해당 파일을 읽게 한다. 다른 경로를 읽으려는 시도는 `dontAsk`로 거절된다. 실제로 경로 밖 읽기가 차단되는지 테스트한다 `[검증 필요]`.
 - 사이드바 대화의 시스템 프롬프트: `prompts/sidebar-chat.md` + `prompts/humanize-digest.md`.
+
+- **답변 인용(Refer to)**: 답변 하나 안에서 텍스트를 선택하면 그 위에 "Refer to" 버튼이 뜬다. 누르면 선택한 부분(수식은 TeX 원문, 위치 태그는 `[…]`)이 입력창 위에 인용으로 붙고, 다음 메시지를 보낼 때 `<quote>`로 질문 앞에 실려 간다. 인용은 대화 기록의 질문에 함께 저장해 표시하고, 질문 노트에 저장할 때는 질문 뒤에 `(인용: "…")`로 붙인다.
 
 ### 10.4 질문 노트로 저장
 

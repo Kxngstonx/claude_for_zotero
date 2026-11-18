@@ -82,6 +82,30 @@ describe("M5", function () {
         ],
       );
       assert.include(cited.querySelector("code")?.textContent, "[p.9]");
+
+      // Math is typeset as MathML; a selection quotes formulas as TeX.
+      const math = doc.createElementNS("http://www.w3.org/1999/xhtml", "div");
+      container.append(math);
+      math.append(
+        ...api().chatPanel.markdownNodes(
+          doc,
+          "함수 $f_0$다 [Sec 4.2, p.5].\n\n$$\\sum_i x_i$$",
+          () => {},
+        ),
+      );
+      assert.lengthOf(math.querySelectorAll("math"), 2);
+      assert.notInclude(math.textContent, "$f_0$");
+      const range = doc.createRange();
+      range.selectNodeContents(math);
+      assert.equal(
+        api().chatPanel.selectionQuote(range),
+        "함수 $f_0$다 [Sec 4.2, p.5].\n$$\\sum_i x_i$$",
+      );
+      // Starting inside a formula takes the whole formula.
+      const inner = math.querySelector("math mi")!.firstChild!;
+      range.setStart(inner, 0);
+      range.setEnd(math.querySelector("p")!.lastChild!, 1);
+      assert.match(api().chatPanel.selectionQuote(range), /^\$f_0\$다/);
     } finally {
       container.remove();
     }

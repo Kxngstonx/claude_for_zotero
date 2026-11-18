@@ -35,6 +35,7 @@ import {
   type ChatHistory,
   type ChatMessage,
   type Preamble,
+  withQuote,
 } from "./chatFormat";
 
 const TURN_TIMEOUT_SEC = 600;
@@ -370,14 +371,21 @@ export class ChatSession {
 
   // ---------------------------------------------------------------- public
 
-  /** Sends a message; resolves with the stored assistant message. */
-  async send(text: string, cb: TurnCallbacks = {}): Promise<ChatMessage> {
+  /**
+   * Sends a message, optionally referring to a quoted part of an earlier
+   * answer; resolves with the stored assistant message.
+   */
+  async send(
+    text: string,
+    cb: TurnCallbacks = {},
+    quote?: string,
+  ): Promise<ChatMessage> {
     if (this.busy)
       throw new Error("이전 메시지에 대한 답변을 기다리는 중입니다.");
     this.busy = true;
     this.cancelled = false;
     this.clearIdle();
-    const run = this.sendInner(text, cb);
+    const run = this.sendInner(text, cb, quote);
     this.inflight = run;
     try {
       return await run;
@@ -397,12 +405,20 @@ export class ChatSession {
   private async sendInner(
     text: string,
     cb: TurnCallbacks,
+    quote?: string,
   ): Promise<ChatMessage> {
     const check = () => {
       if (this.cancelled) throw new ChatStopped();
     };
     const h = await this.load();
-    h.messages.push({ role: "user", text, at: new Date().toISOString() });
+    const user: ChatMessage = {
+      role: "user",
+      text,
+      at: new Date().toISOString(),
+    };
+    if (quote?.trim()) user.quote = quote.trim();
+    h.messages.push(user);
+    const content = withQuote(text, quote);
     await this.save();
     await this.ensureSectionFiles(cb);
     check();
@@ -411,7 +427,7 @@ export class ChatSession {
     if (h.sessionId) {
       try {
         cb.onStatus?.("답변 중…");
-        result = await this.loggedTurn(text, cb, h.sessionId);
+        result = await this.loggedTurn(content, cb, h.sessionId);
       } catch (e) {
         // Only a session that no longer exists starts over (with the full
         // context); other errors keep the session for the next message.
@@ -444,7 +460,7 @@ export class ChatSession {
         await this.save();
       }
       cb.onStatus?.("답변 중…");
-      result = await this.loggedTurn(firstTurnText(pre, text), cb, null);
+      result = await this.loggedTurn(firstTurnText(pre, content), cb, null);
     }
     if (result.sessionId) h.sessionId = result.sessionId;
     const msg: ChatMessage = {

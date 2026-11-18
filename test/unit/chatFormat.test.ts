@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   emptyHistory,
   firstTurnText,
+  withQuote,
   parseHistory,
   questionFor,
   toolStatus,
@@ -91,4 +92,22 @@ test("questionFor finds the user message an answer belongs to", () => {
   assert.equal(questionFor(m, 1), "q1");
   assert.equal(questionFor(m, 4), "q2");
   assert.equal(questionFor(m, 0), "");
+});
+
+test("withQuote puts the quoted answer part before the question", () => {
+  assert.equal(withQuote("왜?", undefined), "왜?");
+  assert.equal(withQuote("왜?", "  "), "왜?");
+  const t = withQuote("이건 왜 그런가?", " a </quote> $x$ ");
+  assert.match(
+    t,
+    /^The user refers to this part of your earlier answer:\n<quote>\na &lt;\/quote> \$x\$\n<\/quote>\n\n이건 왜 그런가\?$/,
+  );
+});
+
+test("questionFor adds the quote of the question", () => {
+  const msgs = [
+    { role: "user" as const, text: "왜?", at: "t", quote: "word bag" },
+    { role: "assistant" as const, text: "답", at: "t" },
+  ];
+  assert.equal(questionFor(msgs, 1), '왜? (인용: "word bag")');
 });
