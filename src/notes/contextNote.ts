@@ -9,6 +9,7 @@ import {
   CONTEXT_TAG,
   contextNoteHtml,
   contextNoteUserMessage,
+  expectedNoteChars,
   promptVersion,
   shortTitle,
   type PaperMeta,
@@ -72,7 +73,12 @@ export function paperMeta(item: Zotero.Item): PaperMeta {
 }
 
 export interface GenerateProgress {
-  (stage: "text" | "model" | "save", detail?: string): void;
+  (
+    stage: "text" | "model" | "save",
+    detail?: string,
+    /** Model stage: characters received and the expected note length. */
+    chars?: { received: number; expected: number },
+  ): void;
 }
 
 // One generation per item at a time; a second request waits for the first.
@@ -100,7 +106,8 @@ async function generate(
   const system = `${mainPrompt.trim()}\n\n${rules}`;
   const model = getPref("claude.modelNote");
   let received = 0;
-  onProgress?.("model", model);
+  const expected = expectedNoteChars(pageCount);
+  onProgress?.("model", model, { received, expected });
   const res = await runOnce({
     feature: "context-note",
     logDetail: { pages: pageCount, totalPages, trimmed },
@@ -115,7 +122,10 @@ async function generate(
     timeoutSec: Number(getPref("timeout.noteSec")) || 600,
     onText: (d) => {
       received += d.length;
-      onProgress?.("model", `${model} · ${received.toLocaleString()}자 수신`);
+      onProgress?.("model", `${model} · ${received.toLocaleString()}자 수신`, {
+        received,
+        expected,
+      });
     },
   });
   // A note continued by a fallback model after a safety-classifier stop is

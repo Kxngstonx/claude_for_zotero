@@ -142,4 +142,5 @@ npm start            # 개발용 프로필로 Zotero 실행 (.env에 프로필 �
 
 - 프로세스 실행·리더 텍스트 접근 일부는 [YufeiXIA/zotero-claude-code](https://github.com/YufeiXIA/zotero-claude-code)(MIT)를 참고했습니다.
 - 한국어 문체 규칙: `vendor/humanize-korean/` (MIT, `SOURCE.md` 참고).
+- 번역 팝업의 수식 렌더링: [KaTeX](https://katex.org) (MIT), MathML 출력만 사용.
 - 플러그인 골격: [windingwind/zotero-plugin-template](https://github.com/windingwind/zotero-plugin-template).

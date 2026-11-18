@@ -8,6 +8,7 @@ import { loadPrompt } from "../prompts";
 import { geminiGenerate } from "../llm/gemini";
 import { geminiErrorMessage } from "../llm/geminiApi";
 import { selectionSentenceContext } from "../pdf/readerText";
+import { splitMath, texToMathML } from "../utils/math";
 import {
   buildTranslateMessage,
   translateCacheKey,
@@ -120,7 +121,7 @@ function showResult(
   const out = doc.createElement("div");
   out.style.cssText =
     "white-space:pre-wrap;user-select:text;-moz-user-select:text;max-height:240px;overflow:auto;line-height:1.45;padding:2px 4px;";
-  out.textContent = text;
+  appendWithMath(doc, out, text);
   const footer = doc.createElement("div");
   footer.style.cssText =
     "display:flex;gap:8px;align-items:center;justify-content:flex-end;";
@@ -140,6 +141,30 @@ function showResult(
   });
   footer.append(copy);
   box.append(out, footer);
+}
+
+/**
+ * Appends `text` to `el`, with $…$ / $$…$$ formulas rendered as MathML.
+ * The copy button still copies the original text (with the TeX source).
+ */
+function appendWithMath(doc: Document, el: HTMLElement, text: string) {
+  const parser = new (doc.defaultView as any).DOMParser() as DOMParser;
+  for (const seg of splitMath(text)) {
+    if (seg.type === "text") {
+      el.append(doc.createTextNode(seg.value));
+      continue;
+    }
+    try {
+      const html = texToMathML(seg.value, seg.display);
+      const node = parser.parseFromString(html, "text/html").body?.firstChild;
+      if (!node) throw new Error("empty MathML");
+      el.append(doc.importNode(node, true));
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] math rendering failed: ${e}`);
+      const fence = seg.display ? "$$" : "$";
+      el.append(doc.createTextNode(fence + seg.value + fence));
+    }
+  }
 }
 
 function showError(doc: Document, box: HTMLElement, message: string) {
