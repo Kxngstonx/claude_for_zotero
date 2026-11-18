@@ -10,6 +10,7 @@ import {
   type GenerateProgress,
 } from "../notes/contextNote";
 import { noteProgress } from "../notes/contextNoteFormat";
+import { applyArc, fitWindow } from "../utils/progressArc";
 
 const STAGE: Record<string, string> = {
   text: "PDF 텍스트 추출 중…",
@@ -28,13 +29,27 @@ async function runFor(item: Zotero.Item, win: Window) {
     if (!ok) return;
   }
 
-  const title = String(item.getField("title") || "").slice(0, 50);
-  const popup = new ztoolkit.ProgressWindow("Claude 컨텍스트 노트", {
+  // The paper title goes in the headline (one line, cropped by Zotero) and
+  // the line shows only the stage, so the text rarely wraps; fitWindow
+  // grows the window when it does (long error messages).
+  const title = String(item.getField("title") || "");
+  const popup = new ztoolkit.ProgressWindow(`Claude 컨텍스트 노트 · ${title}`, {
     closeOnClick: false,
     closeTime: -1,
   })
-    .createLine({ text: `${title}\n준비 중…`, type: "default", progress: 5 })
+    .createLine({ text: "준비 중…", type: "default", progress: 5 })
     .show();
+  let lineHeight = 0;
+  const update = (opts: { text: string; progress: number; type?: string }) => {
+    popup.changeLine(opts);
+    const line = (popup as any).lines?.[0];
+    try {
+      applyArc(line, opts.progress);
+      lineHeight = fitWindow(line, lineHeight);
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] progress window styling failed: ${e}`);
+    }
+  };
 
   // The arc fills with an estimate: a timer advances it while the model
   // thinks (no text yet), streamed text advances it after that.
@@ -52,7 +67,7 @@ async function runFor(item: Zotero.Item, win: Window) {
       chars.expected,
     );
     shown = Math.max(shown, p); // never moves back
-    popup.changeLine({ text: `${title}\n${text}`, progress: shown });
+    update({ text, progress: shown });
   };
   const tick = win.setInterval(() => {
     if (stage === "model") render();
@@ -72,16 +87,16 @@ async function runFor(item: Zotero.Item, win: Window) {
   try {
     await regenerateContextNote(item, onProgress);
     win.clearInterval(tick);
-    popup.changeLine({
-      text: `${title}\n노트를 저장했습니다.`,
+    update({
+      text: "노트를 저장했습니다.",
       type: "success",
       progress: 100,
     });
     popup.startCloseTimer(5000);
   } catch (e) {
     win.clearInterval(tick);
-    popup.changeLine({
-      text: `${title}\n실패: ${errorMessage(e)}`,
+    update({
+      text: `실패: ${errorMessage(e)}`,
       type: "fail",
       progress: 100,
     });

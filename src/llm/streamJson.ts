@@ -90,9 +90,16 @@ export class TurnCollector {
   rateLimited = false;
   result: any | null = null;
   /**
-   * The safety classifier stopped the output and the CLI retried with a
-   * fallback model (system/model_refusal_fallback, claude 2.1.327). The
-   * refused output is retracted: `text` restarts with the fallback's output.
+   * The safety classifier stopped the output and the CLI went on with a
+   * retry; the refused output is retracted and `text` restarts with the
+   * retry's output. Two paths seen with claude 2.1.327:
+   * - system/model_refusal_fallback: a fallback model starts over;
+   * - the message ends with stop_reason "refusal" (stream_event
+   *   message_delta), a system/informational notice ("safeguards stopped
+   *   the response above · continuing once with that noted") follows, and
+   *   the same model continues in a new message (MineGrad, UTR, 2026-11-18;
+   *   in practice the continuation said it would stop).
+   * `from` and `to` are equal in the second case.
    */
   refusalFallback: { from: string; to: string } | null = null;
   /** The output was refused and no retry ran (or the retry was refused). */
@@ -150,6 +157,21 @@ export class TurnCollector {
         if (!this.sessionId && ev.session_id) this.sessionId = ev.session_id;
         return null;
       default: {
+        const e = ev.type === "stream_event" ? ev.event : null;
+        if (e?.type === "message_delta" && e.delta?.stop_reason === "refusal") {
+          // Refused unless a new message follows (see refusalFallback).
+          this.refused = true;
+          this.refusalCategory ??= e.delta.stop_details?.category ?? null;
+          const m = this.model ?? "";
+          this.refusalFallback ??= { from: m, to: m };
+          this.text = "";
+          return null;
+        }
+        if (e?.type === "message_start" && this.refused) {
+          this.refused = false; // the CLI continues after the refusal
+          if (e.message?.model) this.model = String(e.message.model);
+          return null;
+        }
         // A new text block after earlier text (e.g. after a tool call):
         // keep them apart in the streamed text.
         if (
