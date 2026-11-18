@@ -5,6 +5,8 @@
 // Process handling adapted from YufeiXIA/zotero-claude-code
 // (addon/content/claude-process.js, store.js), MIT License.
 
+import type { Section } from "../pdf/documentMap";
+import { writeSectionFiles } from "../pdf/sections";
 import { getPref } from "../utils/prefs";
 import { logged } from "../log";
 import type { LogFeature } from "../logFormat";
@@ -190,6 +192,12 @@ export interface RunOnceOptions {
   onModel?: (model: string) => void;
   /** Called after the process starts with a function that kills it. */
   onStart?: (kill: () => void) => void;
+  /**
+   * The paper's sections. When given, they are written to one file each
+   * (writeSectionFiles) in a fixed directory that becomes the working
+   * directory, and the model may Read them (nothing else).
+   */
+  sections?: Section[];
   /** Activity log label (M6). */
   feature: LogFeature;
   /** Extra facts for the activity log. */
@@ -210,7 +218,7 @@ export interface RunOnceResult {
 }
 
 /**
- * One turn, no tools. Rejects with ClaudeError (kind "refusal" when the
+ * One turn, no tools (only Read on the given sections). Rejects with ClaudeError (kind "refusal" when the
  * safety classifier stopped the output and no retry produced one). On timeout the process is
  * killed; text already passed to onText stays delivered.
  */
@@ -237,14 +245,18 @@ async function runOnceInner(
   await IOUtils.makeDirectory(dir, { createAncestors: true });
   const promptFile = PathUtils.join(dir, "system-prompt.md");
   await IOUtils.writeUTF8(promptFile, o.systemPrompt);
+  // A fixed directory too (calls are serialized; see oneShotRunDir).
+  const sectionsDir = PathUtils.join(dir, "sections");
+  if (o.sections) await writeSectionFiles(sectionsDir, o.sections);
 
   const args = oneShotArgs({
     model: o.model,
     effort: o.effort,
     systemPromptFile: promptFile,
+    readSections: !!o.sections,
   });
   const { proc, stderr, drained } = await launch(bin.path, args, {
-    workdir: dir,
+    workdir: o.sections ? sectionsDir : dir,
     stderr: "pipe",
   });
 

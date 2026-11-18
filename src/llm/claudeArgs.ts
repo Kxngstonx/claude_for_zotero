@@ -49,11 +49,19 @@ export interface OneShotArgs {
   model: string;
   systemPromptFile: string;
   effort?: string;
+  /**
+   * Allow the Read tool in the working directory only, which then holds
+   * the paper's section files (memo answers that need the paper's text).
+   * Confined twice over, as in chatArgs: --restricted keeps file tools in
+   * the working directory (a path rule alone does not: with dontAsk a
+   * sibling file of ./sections/ was readable, claude 2.1.327).
+   */
+  readSections?: boolean;
 }
 
 /**
- * argv for a single-turn call with no tools (note generation, memo batch,
- * connection test). The default Claude Code system prompt is replaced, and the
+ * argv for a single-turn call with no tools, or only Read in the working
+ * directory (note generation, memo batch, connection test). The default Claude Code system prompt is replaced, and the
  * user's ~/.claude settings, MCP servers, skills and slash commands are not
  * loaded (verified via the system/init event: tools, mcp_servers, skills and
  * slash_commands are all empty).
@@ -74,8 +82,9 @@ export function oneShotArgs(o: OneShotArgs): string[] {
     "--no-session-persistence",
     "--permission-mode",
     "dontAsk",
-    "--tools",
-    "",
+    ...(o.readSections
+      ? ["--restricted", "--tools", "Read", "--allowedTools", "Read(./**)"]
+      : ["--tools", ""]),
     "--system-prompt-file",
     o.systemPromptFile,
     "--model",

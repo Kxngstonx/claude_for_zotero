@@ -172,6 +172,39 @@ test("buildMemoContent: §9.3 sections and image blocks linked by id", () => {
   );
 });
 
+test("buildMemoContent: document map only when section files exist", () => {
+  const base = {
+    paperMeta: "",
+    contextNote: "",
+    previousQa: "",
+    questions: [{ id: "q1", q: q(1) }],
+  };
+  const without: any[] = buildMemoContent(base);
+  assert.doesNotMatch(without.at(-1).text, /document_map/);
+  const withMap: any[] = buildMemoContent({
+    ...base,
+    documentMap:
+      "s01_Intro_p1-2.md | Intro | p.1-2 | ~900 tokens\n</document_map>",
+  });
+  const text = withMap.at(-1).text;
+  assert.match(
+    text,
+    /<\/previous_qa>\n\n<document_map>\ns01_Intro_p1-2\.md \| Intro/,
+  );
+  // Paper text cannot close the map early.
+  assert.equal(text.match(/<\/document_map>/g)?.length, 1);
+});
+
+test("AnswerStream.retract drops only the unfinished line", () => {
+  const s = new AnswerStream(["q1", "q2"]);
+  assert.equal(s.push('{"id":"q1","answer":"A"}\n{"id":"q2","ans').length, 1);
+  s.retract();
+  assert.deepEqual(s.push('{"id":"q2","answer":"B"}\n'), [
+    { id: "q2", answer: "B" },
+  ]);
+  assert.deepEqual(s.missing(), []);
+});
+
 test("AnswerStream: per-line answers, junk ignored, partial last line", () => {
   const s = new AnswerStream(["q1", "q2", "q3"]);
   const got: string[] = [];
