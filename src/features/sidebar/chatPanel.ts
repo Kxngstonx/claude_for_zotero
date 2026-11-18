@@ -4,7 +4,9 @@
 // also the pending memo questions row with "답변 생성".
 //
 // Answers are rendered from the Markdown parser's element tree into DOM
-// nodes with textContent only (no innerHTML); math stays as $…$ text (§10.2).
+// nodes with textContent only (no innerHTML); math is typeset as MathML by
+// KaTeX (trust off, §10.2). Selecting part of an answer shows "Refer to",
+// which attaches the selection as a quote to the next message.
 // Styles: addon/content/chat.css (Zotero theme variables).
 
 import { errorMessage } from "../../llm/claudeCli";
@@ -15,6 +17,7 @@ import { chatSession, ChatStopped } from "../../chat/chatSession";
 import { questionFor, type ChatMessage } from "../../chat/chatFormat";
 import { citeSegments, placesText, sortCitations } from "../../chat/chatView";
 import { memoStatus, onMemoStateChange, startMemoBatch } from "../memoState";
+import { mathNode } from "../../utils/mathDom";
 import { el } from "./dom";
 
 const HTML = "http://www.w3.org/1999/xhtml";
@@ -38,6 +41,8 @@ interface ChatUi {
   error?: string;
   /** Information line above the composer (e.g. after /memos). */
   info?: string;
+  /** Part of an answer the next message refers to ("Refer to"). */
+  quote?: string;
 }
 
 interface Refs {
@@ -49,6 +54,8 @@ interface Refs {
   draftBox: HTMLElement;
   draftText: HTMLElement;
   draftStatus: HTMLElement;
+  quoteBar: HTMLElement;
+  quoteText: HTMLElement;
   pendingText?: HTMLElement;
   pendingBtn?: HTMLButtonElement;
   /** Memo batch can run (cached by renderPending; streaming is checked live). */
@@ -127,6 +134,80 @@ function citedText(
 }
 
 /**
+ * A parser math node (<span class="math">$…$</span> or
+ * <pre class="math">$$…$$</pre>) typeset as MathML.
+ */
+function mathElement(doc: Document, n: HNode): HTMLElement {
+  const display = n.tag === "pre";
+  const src = n.children.filter((c) => typeof c === "string").join("");
+  const fence = display ? 2 : 1;
+  const tex =
+    src.startsWith("$".repeat(fence)) && src.endsWith("$".repeat(fence))
+      ? src.slice(fence, -fence)
+      : src;
+  const e = el(doc, display ? "div" : "span");
+  e.className = display ? "math math-display" : "math";
+  e.append(mathNode(doc, tex.trim(), display));
+  return e;
+}
+
+const BLOCKS = new Set([
+  "p",
+  "div",
+  "li",
+  "pre",
+  "blockquote",
+  "tr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+]);
+
+/**
+ * The selected part of an answer as text: formulas as their TeX source
+ * ($…$, a partly selected formula counts whole), location marks as
+ * [tag], blocks on their own lines.
+ */
+export function selectionQuote(range: Range): string {
+  const r = range.cloneRange();
+  const mathOf = (n: Node) =>
+    (n.nodeType === 1 ? (n as Element) : n.parentElement)?.closest("math");
+  const ms = mathOf(r.startContainer);
+  if (ms) r.setStartBefore(ms);
+  const me = mathOf(r.endContainer);
+  if (me) r.setEndAfter(me);
+  let out = "";
+  const walk = (n: Node) => {
+    if (n.nodeType === 3) {
+      out += n.nodeValue ?? "";
+      return;
+    }
+    const e = n.nodeType === 1 ? (n as Element) : null;
+    if (e?.localName === "math") {
+      const tex = e.querySelector("annotation")?.textContent?.trim();
+      const fence = e.getAttribute("display") === "block" ? "$$" : "$";
+      out += tex ? `${fence}${tex}${fence}` : (e.textContent ?? "");
+      return;
+    }
+    if (e?.classList.contains("zca-cite")) {
+      const space = !out || /\s$/.test(out) ? "" : " ";
+      out += `${space}[${e.getAttribute("title") || e.textContent}]`;
+      return;
+    }
+    for (const c of Array.from(n.childNodes)) if (c) walk(c);
+    if (e && BLOCKS.has(e.localName)) out += "\n";
+  };
+  walk(r.cloneContents());
+  return out
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Markdown → DOM nodes from the parser's element tree (text via textContent).
  * With `onPage`, location tags in plain text become marks.
  */
@@ -141,6 +222,7 @@ export function markdownNodes(
         ? citedText(doc, n, onPage)
         : doc.createTextNode(n);
     }
+    if (n.attrs?.class === "math") return mathElement(doc, n);
     const e = doc.createElementNS(HTML, n.tag) as HTMLElement;
     if (n.tag === "a" && n.attrs?.href) {
       const href = n.attrs.href;
@@ -198,6 +280,8 @@ function renderLive(container: HTMLElement, itemID: number) {
   refs.draftText.textContent = st.draft ?? "";
   refs.draftText.style.display = st.draft ? "" : "none";
   refs.draftStatus.textContent = st.status || "작성 중";
+  refs.quoteBar.style.display = st.quote ? "" : "none";
+  refs.quoteText.textContent = st.quote ?? "";
   refs.status.textContent = st.error ?? st.info ?? "";
   refs.status.classList.toggle("zca-error", !!st.error);
   refs.input.disabled = !!st.streaming;
@@ -234,6 +318,7 @@ async function saveToQaNote(item: Zotero.Item, index: number) {
 async function send(item: Zotero.Item, text: string) {
   const q = text.trim();
   if (!q) return;
+  const quote = q === "/memos" ? undefined : uiState.get(item.id)?.quote;
   if (q === "/memos") {
     setUi(item.id, {
       error: undefined,
@@ -249,12 +334,17 @@ async function send(item: Zotero.Item, text: string) {
     status: "준비 중…",
     error: undefined,
     info: undefined,
+    quote: undefined,
   });
   try {
-    await session.send(q, {
-      onDelta: (t) => setUi(item.id, { draft: t }, true),
-      onStatus: (s) => setUi(item.id, { status: s }, true),
-    });
+    await session.send(
+      q,
+      {
+        onDelta: (t) => setUi(item.id, { draft: t }, true),
+        onStatus: (s) => setUi(item.id, { status: s }, true),
+      },
+      quote,
+    );
     setUi(item.id, { streaming: false, draft: "", status: "" });
   } catch (e) {
     setUi(item.id, {
@@ -340,9 +430,15 @@ function messageViews(
       turn.className = "zca-turn";
       const label = el(doc, "div", "질문");
       label.className = "zca-q-label";
+      turn.append(label);
+      if (m.quote) {
+        const quote = el(doc, "div", m.quote);
+        quote.className = "zca-quote";
+        turn.append(quote);
+      }
       const q = el(doc, "div", m.text);
       q.className = "zca-q";
-      turn.append(label, q);
+      turn.append(q);
       out.push(turn);
       answered = false;
       return;
@@ -456,6 +552,21 @@ function build(container: HTMLElement, opts: MountOptions): Refs {
   status.className = "zca-status";
   bottom.append(status);
 
+  // The quoted part the next message refers to, with a remove button.
+  const quoteBar = el(doc, "div");
+  quoteBar.className = "zca-quote-bar";
+  quoteBar.style.display = "none";
+  const quoteText = el(doc, "div");
+  quoteText.className = "zca-quote";
+  const unquote = el(doc, "button", "×");
+  unquote.className = "zca-link";
+  unquote.title = "인용 빼기";
+  unquote.addEventListener("click", () => {
+    const p = paper();
+    if (p) setUi(p.id, { quote: undefined }, true);
+  });
+  quoteBar.append(quoteText, unquote);
+
   const refs: Refs = {
     opts,
     list,
@@ -465,6 +576,8 @@ function build(container: HTMLElement, opts: MountOptions): Refs {
     draftBox,
     draftText,
     draftStatus,
+    quoteBar,
+    quoteText,
     reset: resetButton,
   };
 
@@ -494,8 +607,58 @@ function build(container: HTMLElement, opts: MountOptions): Refs {
   sendBtn.className = "zca-send";
   sendBtn.title = "보내기";
   composer.append(input, sendBtn);
-  bottom.append(composer);
+  bottom.append(quoteBar, composer);
   container.append(list, bottom);
+
+  // "Refer to" above a selection inside one answer.
+  const refer = el(doc, "button", "Refer to");
+  refer.className = "zca-refer";
+  refer.title = "선택한 부분을 다음 메시지에 인용합니다";
+  refer.style.display = "none";
+  container.append(refer);
+  let selected: Range | null = null;
+  const hideRefer = () => {
+    refer.style.display = "none";
+    selected = null;
+  };
+  const answerOf = (n: Node) =>
+    (n.nodeType === 1 ? (n as Element) : n.parentElement)?.closest(".zca-a") ??
+    null;
+  const showRefer = () => {
+    const sel = doc.defaultView?.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return hideRefer();
+    const r = sel.getRangeAt(0);
+    const answer = answerOf(r.startContainer);
+    if (!answer || answer !== answerOf(r.endContainer)) return hideRefer();
+    if (!list.contains(answer) || !selectionQuote(r)) return hideRefer();
+    selected = r.cloneRange();
+    refer.style.display = "";
+    const box = container.getBoundingClientRect();
+    const rect = r.getBoundingClientRect();
+    const w = refer.offsetWidth;
+    const h = refer.offsetHeight;
+    const above = rect.top - box.top - h - 6;
+    const top = above >= 0 ? above : rect.bottom - box.top + 6;
+    const left = rect.left - box.left + rect.width / 2 - w / 2;
+    refer.style.top = `${top}px`;
+    refer.style.left = `${Math.max(0, Math.min(left, box.width - w))}px`;
+  };
+  list.addEventListener("mouseup", () =>
+    doc.defaultView?.setTimeout(showRefer, 0),
+  );
+  list.addEventListener("mousedown", hideRefer);
+  list.addEventListener("scroll", hideRefer);
+  // Keep the selection while the button is pressed.
+  refer.addEventListener("mousedown", (ev) => ev.preventDefault());
+  refer.addEventListener("click", () => {
+    const p = paper();
+    const quote = selected ? selectionQuote(selected) : "";
+    hideRefer();
+    doc.defaultView?.getSelection()?.removeAllRanges();
+    if (!p || !quote) return;
+    setUi(p.id, { quote }, true);
+    input.focus();
+  });
 
   const grow = () => {
     input.style.height = "auto";

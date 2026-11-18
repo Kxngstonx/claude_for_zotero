@@ -8,7 +8,8 @@ import { loadPrompt } from "../prompts";
 import { geminiGenerate } from "../llm/gemini";
 import { geminiErrorMessage } from "../llm/geminiApi";
 import { selectionSentenceContext } from "../pdf/readerText";
-import { splitMath, texToMathML } from "../utils/math";
+import { splitMath } from "../utils/math";
+import { mathNode } from "../utils/mathDom";
 import {
   buildTranslateMessage,
   translateCacheKey,
@@ -148,22 +149,12 @@ function showResult(
  * The copy button still copies the original text (with the TeX source).
  */
 function appendWithMath(doc: Document, el: HTMLElement, text: string) {
-  const parser = new (doc.defaultView as any).DOMParser() as DOMParser;
   for (const seg of splitMath(text)) {
-    if (seg.type === "text") {
-      el.append(doc.createTextNode(seg.value));
-      continue;
-    }
-    try {
-      const html = texToMathML(seg.value, seg.display);
-      const node = parser.parseFromString(html, "text/html").body?.firstChild;
-      if (!node) throw new Error("empty MathML");
-      el.append(doc.importNode(node, true));
-    } catch (e) {
-      Zotero.debug(`[Claude Assist] math rendering failed: ${e}`);
-      const fence = seg.display ? "$$" : "$";
-      el.append(doc.createTextNode(fence + seg.value + fence));
-    }
+    el.append(
+      seg.type === "text"
+        ? doc.createTextNode(seg.value)
+        : mathNode(doc, seg.value, seg.display),
+    );
   }
 }
 

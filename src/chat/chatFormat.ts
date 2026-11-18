@@ -9,6 +9,8 @@ export interface ChatMessage {
   /** ISO time. */
   at: string;
   model?: string;
+  /** User message: the part of an earlier answer it refers to ("Refer to"). */
+  quote?: string;
   /** When the answer was saved to the Q&A note (ISO time). */
   savedAt?: string;
 }
@@ -79,10 +81,21 @@ export function toolStatus(ev: any): string | null {
   return null;
 }
 
+/**
+ * The text sent to the model for a user message: with a quote, the quoted
+ * part of an earlier answer comes first so the question can refer to it.
+ */
+export function withQuote(text: string, quote?: string): string {
+  if (!quote?.trim()) return text;
+  return `The user refers to this part of your earlier answer:\n<quote>\n${neutralizeTags(quote.trim())}\n</quote>\n\n${text}`;
+}
+
 /** The user question that an assistant message answers (for "질문 노트에 저장"). */
 export function questionFor(messages: ChatMessage[], index: number): string {
   for (let i = index - 1; i >= 0; i--) {
-    if (messages[i].role === "user") return messages[i].text;
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    return m.quote?.trim() ? `${m.text} (인용: "${m.quote.trim()}")` : m.text;
   }
   return "";
 }

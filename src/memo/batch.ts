@@ -62,7 +62,7 @@ export function memoTimeoutSec(
 }
 
 const STRUCTURE_TAG =
-  /<(\/?)(questions|q|question|highlight|surrounding|paper_meta|context_note|previous_qa|document_map)\b/gi;
+  /<(\/?)(questions|q|question|highlight|surrounding|paper_meta|context_note|previous_qa|document_map|quote)\b/gi;
 
 /**
  * Neutralizes our own structural tags inside user/paper text so they cannot
