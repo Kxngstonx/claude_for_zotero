@@ -5,6 +5,8 @@
 // Process handling adapted from YufeiXIA/zotero-claude-code
 // (addon/content/claude-process.js, store.js), MIT License.
 
+import type { Section } from "../pdf/documentMap";
+import { writeSectionFiles } from "../pdf/sections";
 import { getPref } from "../utils/prefs";
 import { logged } from "../log";
 import type { LogFeature } from "../logFormat";
@@ -180,10 +182,22 @@ export interface RunOnceOptions {
   timeoutSec: number;
   /** Called with each streamed text chunk. */
   onText?: (delta: string) => void;
+  /**
+   * Called when the text streamed so far is retracted (safety-classifier
+   * stop, then a fallback model starts over). Later onText calls carry the
+   * fallback's output.
+   */
+  onRetract?: () => void;
   /** Called once with the resolved model id (from system/init). */
   onModel?: (model: string) => void;
   /** Called after the process starts with a function that kills it. */
   onStart?: (kill: () => void) => void;
+  /**
+   * The paper's sections. When given, they are written to one file each
+   * (writeSectionFiles) in a fixed directory that becomes the working
+   * directory, and the model may Read them (nothing else).
+   */
+  sections?: Section[];
   /** Activity log label (M6). */
   feature: LogFeature;
   /** Extra facts for the activity log. */
@@ -195,36 +209,54 @@ export interface RunOnceResult {
   sessionId: string | null;
   /** Resolved model id reported by the CLI, or null. */
   model: string | null;
+  /**
+   * Set when the safety classifier stopped the first model's output and the
+   * CLI retried with a fallback model; `text` is the fallback's output only.
+   */
+  refusalFallback: { from: string; to: string } | null;
+  refusalCategory: string | null;
 }
 
 /**
- * One turn, no tools. Rejects with ClaudeError. On timeout the process is
+ * One turn, no tools (only Read on the given sections). Rejects with ClaudeError (kind "refusal" when the
+ * safety classifier stopped the output and no retry produced one). On timeout the process is
  * killed; text already passed to onText stays delivered.
  */
 export function runOnce(o: RunOnceOptions): Promise<RunOnceResult> {
+  // Filled in by runOnceInner (Read calls, refusals) before it is logged.
+  const detail: Record<string, string | number | boolean> = {
+    ...o.logDetail,
+  };
   return serialize(() =>
     logged(
-      { feature: o.feature, model: o.model, detail: o.logDetail },
-      () => runOnceInner(o),
+      { feature: o.feature, model: o.model, detail },
+      () => runOnceInner(o, detail),
       (r) => r.model,
     ),
   );
 }
 
-async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
+async function runOnceInner(
+  o: RunOnceOptions,
+  detail: Record<string, string | number | boolean>,
+): Promise<RunOnceResult> {
   const bin = await requireClaude();
   const dir = oneShotRunDir();
   await IOUtils.makeDirectory(dir, { createAncestors: true });
   const promptFile = PathUtils.join(dir, "system-prompt.md");
   await IOUtils.writeUTF8(promptFile, o.systemPrompt);
+  // A fixed directory too (calls are serialized; see oneShotRunDir).
+  const sectionsDir = PathUtils.join(dir, "sections");
+  if (o.sections) await writeSectionFiles(sectionsDir, o.sections);
 
   const args = oneShotArgs({
     model: o.model,
     effort: o.effort,
     systemPromptFile: promptFile,
+    readSections: !!o.sections,
   });
   const { proc, stderr, drained } = await launch(bin.path, args, {
-    workdir: dir,
+    workdir: o.sections ? sectionsDir : dir,
     stderr: "pipe",
   });
 
@@ -240,7 +272,9 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
   const lines = new LineBuffer();
   let modelReported = false;
   const handle = (line: string) => {
+    const fallbackBefore = turn.refusalFallback;
     const d = turn.add(parseJsonLine(line));
+    if (turn.refusalFallback !== fallbackBefore) o.onRetract?.();
     if (!modelReported && turn.model) {
       modelReported = true;
       o.onModel?.(turn.model);
@@ -267,6 +301,12 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
     clearTimeout(timer);
   }
 
+  if (turn.reads) detail.reads = turn.reads;
+  if (turn.refusalFallback) {
+    detail.refusalFallback = `${turn.refusalFallback.from} → ${turn.refusalFallback.to}`;
+  }
+  if (turn.refusalCategory) detail.refusalCategory = turn.refusalCategory;
+
   if (timedOut) {
     throw new ClaudeError(
       "timeout",
@@ -285,6 +325,8 @@ async function runOnceInner(o: RunOnceOptions): Promise<RunOnceResult> {
     text: turn.finalText(),
     sessionId: turn.sessionId,
     model: turn.model,
+    refusalFallback: turn.refusalFallback,
+    refusalCategory: turn.refusalCategory,
   };
 }
 

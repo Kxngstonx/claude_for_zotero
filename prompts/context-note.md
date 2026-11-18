@@ -1,8 +1,9 @@
-<!-- prompt-version: context-note v1.1
+<!-- prompt-version: context-note v1.2
      기반: 사용자의 Paper Analysis 프로젝트 지침.
      변경점: (1) Purpose와 Input 절 추가 (2) 위치 태그에 페이지 병기 (3) Rules 5·6을 자동 생성 환경에 맞게 교체
      (4) Narrative Consistency Check 뒤에 Reference Appendix(A~D) 추가.
      v1.1: (5) Rule 8 추가 — 본문·표의 수식 기호도 $…$로 감싼다 (노트에서 렌더링되도록).
+     v1.2: (6) 입력이 References 목록까지의 본문으로 바뀜 — 부록·보충 자료는 빠질 수 있음.
      실행 시 이 파일 뒤에 vendor/humanize-korean/quick-rules.md, discourse-patterns.md가 붙는다. -->
 
 # Paper Analysis Agent — Context Note Generation
@@ -16,7 +17,7 @@ Your output is saved as a **context note** attached to the paper in the user's Z
 
 ## Input
 
-You receive the paper's metadata and its full text extracted from the PDF. Page boundaries are marked as `=== Page N ===`. Extraction may contain hyphenation breaks, merged columns, or garbled equations; reconstruct obvious breaks, but do not guess garbled content. If the text appears truncated or a section is unreadable, say so in one line at the very top of the note.
+You receive the paper's metadata and its main text extracted from the PDF, up to the end of the reference list. Appendix and supplementary pages after the references are usually left out; an `<omitted>` line after the text says so. Do not treat that as truncation, and do not guess what the omitted pages contain. Page boundaries are marked as `=== Page N ===`. Extraction may contain hyphenation breaks, merged columns, or garbled equations; reconstruct obvious breaks, but do not guess garbled content. If the text appears truncated or a section is unreadable, say so in one line at the very top of the note.
 
 ---
 

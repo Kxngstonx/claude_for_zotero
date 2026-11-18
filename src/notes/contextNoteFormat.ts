@@ -34,8 +34,13 @@ export function formatPaperMeta(m: PaperMeta): string {
 export function contextNoteUserMessage(
   meta: PaperMeta,
   fullText: string,
+  /** PDF page count when the text after the reference list was left out. */
+  trimmedFrom = 0,
 ): string {
-  return `<paper_meta>\n${formatPaperMeta(meta)}\n</paper_meta>\n\n<full_text>\n${fullText}\n</full_text>`;
+  const omitted = trimmedFrom
+    ? `\n\n<omitted>The text after the reference list (appendix, supplementary material; the PDF has ${trimmedFrom} pages) was left out on purpose. Do not report this as truncation.</omitted>`
+    : "";
+  return `<paper_meta>\n${formatPaperMeta(meta)}\n</paper_meta>\n\n<full_text>\n${fullText}\n</full_text>${omitted}`;
 }
 
 export function shortTitle(title: string, short?: string): string {
@@ -50,6 +55,8 @@ export interface ContextNoteParts {
   promptVersion: string;
   source: string;
   pageCount: number;
+  /** Pages in the PDF, when more than were sent. */
+  totalPages?: number;
   markdown: string;
 }
 
@@ -63,7 +70,7 @@ export function formatDate(d: Date): string {
 
 /** Note HTML: title, one meta line, then the model's Markdown (headings shifted under the title). */
 export function contextNoteHtml(p: ContextNoteParts): string {
-  const meta = `생성: ${p.model} · ${formatDate(p.date)} · 프롬프트 ${p.promptVersion} · 본문 ${p.pageCount}쪽 (${p.source === "cache" ? "전문 캐시" : "PDF 추출"})`;
+  const meta = `생성: ${p.model} · ${formatDate(p.date)} · 프롬프트 ${p.promptVersion} · 본문 ${p.pageCount}쪽${p.totalPages && p.totalPages > p.pageCount ? ` / 전체 ${p.totalPages}쪽` : ""} (${p.source === "cache" ? "전문 캐시" : "PDF 추출"})`;
   return wrapNote(
     textElement("h1", `Claude 컨텍스트 노트 — ${p.title}`) +
       textElement("p", meta) +

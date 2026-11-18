@@ -7,7 +7,12 @@
 // 2. Otherwise Zotero.PDFWorker.getFullText(itemID, null): same "\f" format,
 //    all pages, no reader needed.
 
-import { formatPages, looksLikeNoTextLayer, splitPages } from "./pagesText";
+import {
+  bodyPages,
+  formatPages,
+  looksLikeNoTextLayer,
+  splitPages,
+} from "./pagesText";
 
 async function fromCache(attachment: Zotero.Item): Promise<string[] | null> {
   try {
@@ -71,4 +76,23 @@ export async function paperPdf(item: Zotero.Item): Promise<Zotero.Item | null> {
     if (a && a.isPDFAttachment()) return a;
   }
   return null;
+}
+
+/**
+ * The main text up to the end of the reference list, with "=== Page N ==="
+ * markers; appendix and supplementary pages are left out (bodyPages).
+ */
+export async function pdfBodyText(attachment: Zotero.Item) {
+  const { pages, source } = await pdfPages(attachment);
+  const body = bodyPages(pages);
+  return {
+    text: formatPages(body),
+    pageCount: body.length,
+    totalPages: pages.length,
+    /** Whether anything after the reference list was left out. */
+    trimmed:
+      body.length < pages.length ||
+      (body.length > 0 && body[body.length - 1] !== pages[body.length - 1]),
+    source,
+  };
 }

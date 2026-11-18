@@ -35,6 +35,9 @@ import {
   type QuestionKind,
 } from "../memo/batch";
 import { annotationPng, imageForModel } from "../pdf/annotationImage";
+import { documentMapText, type Section } from "../pdf/documentMap";
+import { paperPdf } from "../pdf/fullText";
+import { paperSections } from "../pdf/sections";
 import {
   annotationSurrounding,
   closeTabs,
@@ -244,10 +247,24 @@ export async function runMemoBatch(
     closeTabs(opened);
 
     const system = await composePrompt("memo-batch.md", "humanize-digest.md");
+    // The paper's text as section files the model may Read when the
+    // highlight, its surroundings and the context note are not enough.
+    // Without them the batch still runs, from those inputs only.
+    let sections: Section[] | undefined;
+    try {
+      const pdf = await paperPdf(item);
+      if (pdf) {
+        ui.stage("논문 섹션 준비 중…");
+        sections = await paperSections(pdf);
+      }
+    } catch (e) {
+      Zotero.debug(`[Claude Assist] memo: no section files: ${e}`);
+    }
     const shared = {
       paperMeta: formatPaperMeta(paperMeta(item)),
       contextNote: noteHtmlToText(contextNote.getNote()),
       previousQa: previousQa(item),
+      documentMap: sections?.length ? documentMapText(sections) : "",
     };
     const model = getPref("claude.modelAnswer");
     let done = 0;
@@ -363,6 +380,7 @@ export async function runMemoBatch(
           logDetail: {
             questions: batch.length,
             images: batch.filter((q) => q.image).length,
+            sections: sections?.length ?? 0,
           },
           systemPrompt: system,
           content: buildMemoContent({
@@ -372,12 +390,16 @@ export async function runMemoBatch(
           model,
           timeoutSec: memoTimeoutSec(
             batch.length,
-            Number(getPref("timeout.memoBaseSec")) || 60,
+            // Reading section files takes extra round trips.
+            (Number(getPref("timeout.memoBaseSec")) || 60) +
+              (sections?.length ? 60 : 0),
             Number(getPref("timeout.memoPerQuestionSec")) || 30,
           ),
           onModel: (m) => (usedModel = m),
           onStart: (k) => (kill = k),
           onText: (d) => take(stream.push(d)),
+          onRetract: () => stream.retract(),
+          sections: sections?.length ? sections : undefined,
         });
       } catch (e) {
         error = e;

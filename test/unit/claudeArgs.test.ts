@@ -45,6 +45,24 @@ test("parseVersion / compareVersions", () => {
   assert.equal(compareVersions([2, 0, 0], [2, 0, 0]), 0);
 });
 
+test("oneShotArgs with readSections allows Read in the working directory only", () => {
+  const a = oneShotArgs({
+    model: "sonnet",
+    systemPromptFile: "/r/sys.md",
+    readSections: true,
+  });
+  const after = (flag: string) => a[a.indexOf(flag) + 1];
+  assert.equal(after("--tools"), "Read");
+  assert.equal(after("--allowedTools"), "Read(./**)");
+  assert.ok(a.includes("--restricted"));
+  assert.equal(a.filter((x) => x === "--tools").length, 1);
+  assert.ok(
+    !oneShotArgs({ model: "m", systemPromptFile: "/s" }).includes(
+      "--restricted",
+    ),
+  );
+});
+
 test("oneShotArgs disables tools and user settings and replaces the system prompt", () => {
   const a = oneShotArgs({ model: "sonnet", systemPromptFile: "/r/sys.md" });
   const after = (flag: string) => a[a.indexOf(flag) + 1];

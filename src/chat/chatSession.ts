@@ -222,7 +222,11 @@ export class ChatSession {
       if (!ev || !t || t.proc !== proc) return;
       const status = toolStatus(ev);
       if (status) t.cb.onStatus?.(status);
-      if (t.collector.add(ev)) t.cb.onDelta?.(t.collector.text);
+      // Compare text, not the delta: a refusal fallback clears the retracted
+      // answer, and the view must drop it too.
+      const before = t.collector.text;
+      t.collector.add(ev);
+      if (t.collector.text !== before) t.cb.onDelta?.(t.collector.text);
       if (ev.type === "result") this.finishTurn();
     };
     try {

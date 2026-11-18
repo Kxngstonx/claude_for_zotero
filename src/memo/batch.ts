@@ -62,7 +62,7 @@ export function memoTimeoutSec(
 }
 
 const STRUCTURE_TAG =
-  /<(\/?)(questions|q|question|highlight|surrounding|paper_meta|context_note|previous_qa)\b/gi;
+  /<(\/?)(questions|q|question|highlight|surrounding|paper_meta|context_note|previous_qa|document_map)\b/gi;
 
 /**
  * Neutralizes our own structural tags inside user/paper text so they cannot
@@ -76,6 +76,8 @@ export interface MemoPromptInput {
   paperMeta: string;
   contextNote: string;
   previousQa: string;
+  /** documentMapText of the section files the model may Read; "" if none. */
+  documentMap?: string;
   /** Questions with their ids for this call ("q1", "q2", …). */
   questions: Array<{ id: string; q: MemoQuestion }>;
 }
@@ -115,6 +117,11 @@ export function buildMemoContent(input: MemoPromptInput): unknown[] {
       `<paper_meta>\n${input.paperMeta}\n</paper_meta>`,
       `<context_note>\n${neutralizeTags(input.contextNote)}\n</context_note>`,
       `<previous_qa>\n${neutralizeTags(input.previousQa)}\n</previous_qa>`,
+      ...(input.documentMap
+        ? [
+            `<document_map>\n${neutralizeTags(input.documentMap)}\n</document_map>`,
+          ]
+        : []),
       `<questions>\n${qs}\n</questions>`,
     ].join("\n\n"),
   });
@@ -172,6 +179,15 @@ export class AnswerStream {
   end(): Array<{ id: string; answer: string }> {
     const rest = this.lines.flush();
     return rest ? this.take(rest) : [];
+  }
+
+  /**
+   * The output so far was retracted (safety-classifier stop, then a fallback
+   * model starts over): drop the unfinished line. Answers already taken stay
+   * taken; the fallback's answers for those ids are ignored.
+   */
+  retract(): void {
+    this.lines.flush();
   }
 
   missing(): string[] {
