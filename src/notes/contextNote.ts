@@ -4,7 +4,7 @@
 import { getPref } from "../utils/prefs";
 import { composePrompt, loadPrompt } from "../prompts";
 import { runOnce } from "../llm/claudeCli";
-import { paperPdf, pdfFullText } from "../pdf/fullText";
+import { paperPdf, pdfBodyText } from "../pdf/fullText";
 import {
   CONTEXT_TAG,
   contextNoteHtml,
@@ -87,7 +87,8 @@ async function generate(
   if (!pdf) throw new Error("이 항목에 PDF 첨부가 없습니다.");
 
   onProgress?.("text");
-  const { text, pageCount, source } = await pdfFullText(pdf);
+  const { text, pageCount, totalPages, trimmed, source } =
+    await pdfBodyText(pdf);
   const meta = paperMeta(item);
 
   // Read once so the recorded version matches the prompt actually sent.
@@ -102,9 +103,14 @@ async function generate(
   onProgress?.("model", model);
   const res = await runOnce({
     feature: "context-note",
-    logDetail: { pages: pageCount },
+    logDetail: { pages: pageCount, totalPages, trimmed },
     systemPrompt: system,
-    content: [{ type: "text", text: contextNoteUserMessage(meta, text) }],
+    content: [
+      {
+        type: "text",
+        text: contextNoteUserMessage(meta, text, trimmed ? totalPages : 0),
+      },
+    ],
     model,
     timeoutSec: Number(getPref("timeout.noteSec")) || 600,
     onText: (d) => {
@@ -123,6 +129,7 @@ async function generate(
     promptVersion: promptVersion(mainPrompt),
     source,
     pageCount,
+    totalPages,
     markdown,
   });
 
