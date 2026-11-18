@@ -23,6 +23,22 @@ test("parseHistory accepts v1 files and recovers from bad input", () => {
   assert.deepEqual(parseHistory(null), emptyHistory());
 });
 
+test("firstTurnText marks a missing context note", () => {
+  const t = firstTurnText(
+    {
+      paperMeta: "Title: T",
+      contextNote: "",
+      documentMap: "s01_Intro_p1.md | Intro | p.1 | ~10 tokens",
+      previousQa: "",
+    },
+    "q",
+  );
+  assert.match(
+    t,
+    /<context_note>\n\(none: [^\n]*section files\)\n<\/context_note>/,
+  );
+});
+
 test("firstTurnText puts the §10.3 block before the first question", () => {
   const t = firstTurnText(
     {

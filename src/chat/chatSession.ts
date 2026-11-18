@@ -39,6 +39,9 @@ import {
 
 const TURN_TIMEOUT_SEC = 600;
 
+const NO_CONTEXT_NOTICE =
+  "안전 필터로 컨텍스트 노트를 만들 수 없어 노트 없이 논문 섹션을 직접 읽어 답합니다. 외부에서 만든 노트가 있다면 노트 우클릭 → 'Claude 컨텍스트 노트로 지정' 후 새 대화를 시작하세요.";
+
 /** The user stopped the answer. */
 export class ChatStopped extends Error {
   constructor() {
@@ -176,16 +179,24 @@ export class ChatSession {
   private async preamble(cb: TurnCallbacks): Promise<Preamble> {
     const item = this.item();
     cb.onStatus?.("컨텍스트 노트 확인 중…");
-    const note = await ensureContextNote(item, (stage, detail) =>
-      cb.onStatus?.(
-        stage === "model"
-          ? `컨텍스트 노트가 없어 먼저 생성하는 중… (${detail ?? ""})`
-          : "컨텍스트 노트 준비 중…",
-      ),
-    );
+    let contextNote = "";
+    try {
+      const note = await ensureContextNote(item, (stage, detail) =>
+        cb.onStatus?.(
+          stage === "model"
+            ? `컨텍스트 노트가 없어 먼저 생성하는 중… (${detail ?? ""})`
+            : "컨텍스트 노트 준비 중…",
+        ),
+      );
+      contextNote = noteHtmlToText(note.getNote());
+    } catch (e) {
+      // Refused by the safety classifier: answer from the section files.
+      if (!(e instanceof ClaudeError) || e.kind !== "refusal") throw e;
+      cb.onStatus?.("컨텍스트 노트 없이 진행합니다…");
+    }
     return {
       paperMeta: formatPaperMeta(paperMeta(item)),
-      contextNote: noteHtmlToText(note.getNote()),
+      contextNote,
       documentMap: documentMapText(await this.loadSections()),
       previousQa: previousQa(item),
     };
@@ -422,6 +433,16 @@ export class ChatSession {
     if (!result) {
       const pre = await this.preamble(cb);
       check();
+      if (!pre.contextNote) {
+        // Before this question, so the question and its answer stay one
+        // turn (addNotice would put it after the answer).
+        h.messages.splice(h.messages.length - 1, 0, {
+          role: "notice",
+          text: NO_CONTEXT_NOTICE,
+          at: new Date().toISOString(),
+        });
+        await this.save();
+      }
       cb.onStatus?.("답변 중…");
       result = await this.loggedTurn(firstTurnText(pre, text), cb, null);
     }

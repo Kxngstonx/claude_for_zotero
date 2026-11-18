@@ -214,6 +214,8 @@ Body: { systemInstruction: {parts:[{text: <prompts/translate.md>}]},
 ### 8.2 컨텍스트 노트
 
 - **식별**: 부모 아이템의 자식 노트 중 태그 `claude-context`. 여러 개면 가장 최근 것을 쓰고 로그에 경고.
+- **외부 노트 지정**: 노트 우클릭 메뉴 "Claude 컨텍스트 노트로 지정"은 선택한 자식 노트에 `claude-context` 태그를 붙이고 같은 논문의 다른 노트에서는 뗀다. 안전 필터로 생성이 거부되는 논문에서 claude.ai 등 외부에서 만든 노트를 쓰기 위한 것이다.
+- **거부(refusal)**: 생성이 안전 필터로 거부되면 그 논문은 Zotero 실행 중 지연 생성을 다시 시도하지 않는다(메뉴의 재생성은 항상 시도). 사이드바 대화는 노트 없이 진행한다(§10.3).
 - **생성 트리거**: 메모 일괄 처리나 사이드바 대화 시작 시 없으면 먼저 생성(지연 생성), 그리고 아이템 우클릭 메뉴 "Claude 컨텍스트 노트 생성/재생성"(재생성은 확인 창 후 덮어쓰기). 그 외 자동 트리거 없음.
 - **입력**: 시스템 = `prompts/context-note.md` + `vendor/humanize-korean/quick-rules.md` + `vendor/humanize-korean/discourse-patterns.md`. 사용자 메시지 = 메타데이터(제목, 저자, 연도, 학회/저널) + 전문, 페이지마다 `=== Page N ===` 표시(§6.1). v1은 전문을 그대로 보낸다.
 - **호출**: 단발, 도구 없음, 모델 `opus`.
@@ -296,6 +298,7 @@ Body: { systemInstruction: {parts:[{text: <prompts/translate.md>}]},
 ### 10.3 컨텍스트와 섹션 읽기
 
 - 대화 첫 메시지 앞에 고정 블록: 논문 메타, 컨텍스트 노트, 문서 지도(§6.3), 질문 노트의 이전 질의응답.
+- 컨텍스트 노트 생성이 거부되면 `<context_note>`에 "none"을 넣고 섹션 파일만으로 답한다. 대화에는 그 질문 앞에 안내 notice를 남긴다. 이미 시작한 대화는 고정 블록을 다시 보내지 않으므로, 노트를 지정한 뒤에는 새 대화를 시작해야 반영된다.
 - 섹션 원문 읽기: 대화 시작 시 실행 디렉터리에 섹션별 텍스트 파일을 만든다(`sections/s3_Method_p4-6.md` 등). `--allowedTools Read`, cwd를 그 디렉터리로 두고, 모델이 필요할 때 해당 파일을 읽게 한다. 다른 경로를 읽으려는 시도는 `dontAsk`로 거절된다. 실제로 경로 밖 읽기가 차단되는지 테스트한다 `[검증 필요]`.
 - 사이드바 대화의 시스템 프롬프트: `prompts/sidebar-chat.md` + `prompts/humanize-digest.md`.
 

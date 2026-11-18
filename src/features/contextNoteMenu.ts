@@ -3,13 +3,14 @@
 import { getLocaleID } from "../utils/locale";
 import { errorMessage } from "../llm/claudeCli";
 import {
+  designateContextNote,
   findContextNote,
   isGenerating,
   paperItem,
   regenerateContextNote,
   type GenerateProgress,
 } from "../notes/contextNote";
-import { noteProgress } from "../notes/contextNoteFormat";
+import { CONTEXT_TAG, noteProgress } from "../notes/contextNoteFormat";
 import { applyArc, fitWindow } from "../utils/progressArc";
 
 const STAGE: Record<string, string> = {
@@ -114,6 +115,34 @@ async function runFor(item: Zotero.Item, win: Window) {
   }
 }
 
+/** The paper of a single selected child note that is not the context note yet. */
+function designatable(items: Zotero.Item[]): Zotero.Item | null {
+  if (items.length !== 1) return null;
+  const note = items[0];
+  if (!note.isNote() || note.hasTag(CONTEXT_TAG)) return null;
+  return paperItem(note);
+}
+
+async function designate(note: Zotero.Item) {
+  const popup = new ztoolkit.ProgressWindow("Claude 컨텍스트 노트", {
+    closeOnClick: true,
+    closeTime: -1,
+  });
+  try {
+    await designateContextNote(note);
+    popup
+      .createLine({
+        text: "이 노트를 컨텍스트 노트로 지정했습니다.",
+        type: "success",
+      })
+      .show();
+    popup.startCloseTimer(4000);
+  } catch (e) {
+    popup.createLine({ text: `실패: ${errorMessage(e)}`, type: "fail" }).show();
+    popup.startCloseTimer(10000);
+  }
+}
+
 export function registerContextNoteMenu() {
   Zotero.MenuManager.registerMenu({
     menuID: `${addon.data.config.addonRef}-context-note`,
@@ -142,6 +171,20 @@ export function registerContextNoteMenu() {
               paper,
               ctx.menuElem?.ownerGlobal ?? Zotero.getMainWindow(),
             );
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: getLocaleID("menu-context-note-designate"),
+        onShowing: (_event: Event, ctx: any) => {
+          const paper = designatable(ctx.items || []);
+          ctx.setVisible(!!paper);
+          if (!paper) return;
+          ctx.setEnabled(paper.library.editable && !isGenerating(paper));
+        },
+        onCommand: (_event: Event, ctx: any) => {
+          const items: Zotero.Item[] = ctx.items || [];
+          if (designatable(items)) void designate(items[0]);
         },
       },
     ],

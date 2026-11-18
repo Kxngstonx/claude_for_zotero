@@ -84,6 +84,15 @@ export interface GenerateProgress {
 // One generation per item at a time; a second request waits for the first.
 const inflight = new Map<number, Promise<Zotero.Item>>();
 
+// Items whose generation the safety classifier refused in this Zotero
+// session. Lazy generation (chat) skips them instead of waiting for another
+// refusal; the menu's regeneration always tries again.
+const refused = new Set<number>();
+
+function isRefusal(e: unknown): boolean {
+  return e instanceof ClaudeError && e.kind === "refusal";
+}
+
 async function generate(
   item: Zotero.Item,
   overwrite: Zotero.Item | null,
@@ -169,9 +178,20 @@ function start(
   item: Zotero.Item,
   run: () => Promise<Zotero.Item>,
 ): Promise<Zotero.Item> {
-  const p = run().finally(() => {
-    if (inflight.get(item.id) === p) inflight.delete(item.id);
-  });
+  const p = run()
+    .then(
+      (note) => {
+        refused.delete(item.id);
+        return note;
+      },
+      (e) => {
+        if (isRefusal(e)) refused.add(item.id);
+        throw e;
+      },
+    )
+    .finally(() => {
+      if (inflight.get(item.id) === p) inflight.delete(item.id);
+    });
   inflight.set(item.id, p);
   return p;
 }
@@ -189,6 +209,11 @@ export function ensureContextNote(
   if (running) return running;
   const existing = findContextNote(item);
   if (existing) return Promise.resolve(existing);
+  if (refused.has(item.id)) {
+    return Promise.reject(
+      new ClaudeError("refusal", "earlier generation was refused"),
+    );
+  }
   return start(item, () => generate(item, null, onProgress));
 }
 
@@ -203,4 +228,26 @@ export function regenerateContextNote(
   const running = inflight.get(item.id);
   const run = () => generate(item, findContextNote(item), onProgress);
   return start(item, running ? () => running.catch(() => null).then(run) : run);
+}
+
+/**
+ * Makes `note` the context note of its paper: it gets the tag and any other
+ * context note of that paper loses it. For notes written elsewhere (e.g. on
+ * claude.ai when generation here is refused).
+ */
+export async function designateContextNote(note: Zotero.Item): Promise<void> {
+  const paper = note.isNote() ? paperItem(note) : null;
+  if (!paper) throw new Error("논문 항목에 달린 노트가 아닙니다.");
+  await Zotero.DB.executeTransaction(async () => {
+    for (const other of taggedNotes(paper, CONTEXT_TAG)) {
+      if (other.id === note.id) continue;
+      other.removeTag(CONTEXT_TAG);
+      await other.save();
+    }
+    if (!note.hasTag(CONTEXT_TAG)) {
+      note.addTag(CONTEXT_TAG);
+      await note.save();
+    }
+  });
+  refused.delete(paper.id);
 }
