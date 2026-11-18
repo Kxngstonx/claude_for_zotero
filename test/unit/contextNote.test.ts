@@ -9,6 +9,8 @@ import {
 import {
   contextNoteHtml,
   contextNoteUserMessage,
+  expectedNoteChars,
+  noteProgress,
   formatDate,
   promptVersion,
   shortTitle,
@@ -185,4 +187,16 @@ test("contextNoteUserMessage notes omitted pages", () => {
   const m = { title: "T", authors: [], year: "", venue: "" };
   assert.ok(!contextNoteUserMessage(m, "x").includes("<omitted>"));
   assert.match(contextNoteUserMessage(m, "x", 20), /<omitted>.*20 pages/);
+});
+
+test("noteProgress: thinking creeps, streaming follows the expected length", () => {
+  assert.equal(noteProgress("text", 0, 0, 1), 10);
+  assert.equal(noteProgress("model", 0, 0, 20000), 15);
+  const thinking = noteProgress("model", 120000, 0, 20000);
+  assert.ok(thinking > 30 && thinking < 35);
+  assert.equal(noteProgress("model", 0, 10000, 20000), 64);
+  assert.equal(noteProgress("model", 0, 50000, 20000), 92);
+  assert.equal(noteProgress("save", 0, 0, 1), 96);
+  assert.equal(expectedNoteChars(4), 12000);
+  assert.equal(expectedNoteChars(14), 21000);
 });

@@ -9,6 +9,7 @@ import {
   regenerateContextNote,
   type GenerateProgress,
 } from "../notes/contextNote";
+import { noteProgress } from "../notes/contextNoteFormat";
 
 const STAGE: Record<string, string> = {
   text: "PDF 텍스트 추출 중…",
@@ -35,23 +36,42 @@ async function runFor(item: Zotero.Item, win: Window) {
     .createLine({ text: `${title}\n준비 중…`, type: "default", progress: 5 })
     .show();
 
+  // The arc fills with an estimate: a timer advances it while the model
+  // thinks (no text yet), streamed text advances it after that.
+  let stage: "text" | "model" | "save" = "text";
+  let text = "준비 중…";
+  let modelStart = 0;
+  let chars = { received: 0, expected: 1 };
+  let shown = 0;
   let last = 0;
-  let lastStage = "";
-  const onProgress: GenerateProgress = (stage, detail) => {
+  const render = () => {
+    const p = noteProgress(
+      stage,
+      Date.now() - modelStart,
+      chars.received,
+      chars.expected,
+    );
+    shown = Math.max(shown, p); // never moves back
+    popup.changeLine({ text: `${title}\n${text}`, progress: shown });
+  };
+  const tick = win.setInterval(() => {
+    if (stage === "model") render();
+  }, 1000);
+  const onProgress: GenerateProgress = (s, detail, c) => {
     const now = Date.now();
     // throttle repeated streaming updates, never a stage change
-    if (stage === lastStage && now - last < 500) return;
+    if (s === stage && now - last < 500) return;
     last = now;
-    lastStage = stage;
-    const progress = stage === "text" ? 10 : stage === "model" ? 40 : 90;
-    popup.changeLine({
-      text: `${title}\n${STAGE[stage]}${detail ? ` (${detail})` : ""}`,
-      progress,
-    });
+    if (s === "model" && stage !== "model") modelStart = now;
+    stage = s;
+    if (c) chars = c;
+    text = `${STAGE[s]}${detail ? ` (${detail})` : ""}`;
+    render();
   };
 
   try {
     await regenerateContextNote(item, onProgress);
+    win.clearInterval(tick);
     popup.changeLine({
       text: `${title}\n노트를 저장했습니다.`,
       type: "success",
@@ -59,6 +79,7 @@ async function runFor(item: Zotero.Item, win: Window) {
     });
     popup.startCloseTimer(5000);
   } catch (e) {
+    win.clearInterval(tick);
     popup.changeLine({
       text: `${title}\n실패: ${errorMessage(e)}`,
       type: "fail",

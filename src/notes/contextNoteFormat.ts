@@ -77,3 +77,28 @@ export function contextNoteHtml(p: ContextNoteParts): string {
       markdownToHtml(p.markdown, { headingShift: 1 }),
   );
 }
+
+/** Expected length of a note in characters, from the pages sent. */
+export function expectedNoteChars(pageCount: number): number {
+  return Math.max(12000, pageCount * 1500);
+}
+
+/**
+ * Estimated progress (0–100) for the progress window's arc. Extraction is
+ * 10. While the model thinks (no text yet) it creeps from 15 toward 35;
+ * once text streams it follows the received share of the expected length
+ * up to 92, so a longer note than expected waits there. Saving is 96.
+ */
+export function noteProgress(
+  stage: "text" | "model" | "save",
+  modelElapsedMs: number,
+  received: number,
+  expected: number,
+): number {
+  if (stage === "text") return 10;
+  if (stage === "save") return 96;
+  if (received <= 0) {
+    return Math.round(15 + 20 * (1 - Math.exp(-modelElapsedMs / 60000)));
+  }
+  return Math.round(35 + 57 * Math.min(1, received / Math.max(1, expected)));
+}
