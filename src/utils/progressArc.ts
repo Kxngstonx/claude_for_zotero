@@ -35,17 +35,25 @@ export function applyArc(line: any, percent: number): void {
   img.style.backgroundImage = `url("${arcDataUri(percent)}")`;
   img.style.backgroundPosition = "center";
   img.style.backgroundSize = "16px 16px";
+  // A line created without an icon type has no icon-16 class to size it.
+  img.style.width = "16px";
+  img.style.height = "16px";
+  img.style.alignSelf = "start";
 }
 
 /**
  * Grows the progress window to its text. Zotero sizes the window when lines
  * are added, not when a line's text changes, so a text that wraps onto
  * another line was clipped. Resizes only when the line's height changed.
+ * Also makes the line wrap at spaces only.
  */
 export function fitWindow(line: any, lastHeight: number): number {
   const text = line?._itemText as HTMLElement | undefined;
   const win = text?.ownerGlobal as any;
   if (!text || !win) return lastHeight;
+  // Wrap at spaces, not between Korean characters ("1,189" | "자 수신").
+  text.style.wordBreak = "keep-all";
+  text.style.overflowWrap = "anywhere"; // a single long word still wraps
   const h = Math.ceil(text.getBoundingClientRect().height);
   if (h !== lastHeight) {
     win.sizeToContent();

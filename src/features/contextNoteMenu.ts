@@ -37,17 +37,27 @@ async function runFor(item: Zotero.Item, win: Window) {
     closeOnClick: false,
     closeTime: -1,
   })
-    .createLine({ text: "준비 중…", type: "default", progress: 5 })
+    // No icon type: while running, the line shows only the progress ring.
+    // ztoolkit's changeLine re-applies a line's icon asynchronously
+    // (updateIcons) over anything but Zotero's own sprite, so progress
+    // updates go to the ItemProgress directly; only the final success/fail
+    // line goes through changeLine for its icon.
+    .createLine({ text: "준비 중…", progress: 5 })
     .show();
   let lineHeight = 0;
   const update = (opts: { text: string; progress: number; type?: string }) => {
-    popup.changeLine(opts);
     const line = (popup as any).lines?.[0];
     try {
-      applyArc(line, opts.progress);
+      if (opts.type || !line) {
+        popup.changeLine(opts);
+      } else {
+        line.setText(opts.text);
+        line.setProgress(opts.progress);
+        applyArc(line, opts.progress);
+      }
       lineHeight = fitWindow(line, lineHeight);
     } catch (e) {
-      Zotero.debug(`[Claude Assist] progress window styling failed: ${e}`);
+      Zotero.debug(`[Claude Assist] progress window update failed: ${e}`);
     }
   };
 
