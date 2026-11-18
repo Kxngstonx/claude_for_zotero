@@ -41,19 +41,40 @@ export function applyArc(line: any, percent: number): void {
   img.style.alignSelf = "start";
 }
 
+/** Width of the line's text (and cap of the headline), in CSS px. */
+export const LINE_WIDTH = 380;
+
 /**
- * Grows the progress window to its text. Zotero sizes the window when lines
- * are added, not when a line's text changes, so a text that wraps onto
- * another line was clipped. Resizes only when the line's height changed.
- * Also makes the line wrap at spaces only.
+ * Lays out the window for a long headline and line text, then grows the
+ * window to the text.
+ *
+ * - Zotero's stylesheet fixes the line text at 250 px while the window
+ *   widens to the whole headline (the paper title), so the text wrapped
+ *   far short of the window's edge. The text gets LINE_WIDTH and the
+ *   headline is capped to it (cropped with "…" by its label).
+ * - The text wraps at spaces, not between Korean characters.
+ * - Zotero sizes the window when lines are added, not when a line's text
+ *   changes, so a text that wraps onto another line was clipped. Resizes
+ *   only when the line's height changed.
  */
 export function fitWindow(line: any, lastHeight: number): number {
   const text = line?._itemText as HTMLElement | undefined;
   const win = text?.ownerGlobal as any;
   if (!text || !win) return lastHeight;
-  // Wrap at spaces, not between Korean characters ("1,189" | "자 수신").
+  text.style.width = `${LINE_WIDTH}px`;
   text.style.wordBreak = "keep-all";
   text.style.overflowWrap = "anywhere"; // a single long word still wraps
+  const headline = text.ownerDocument?.getElementById(
+    "zotero-progress-text-headline",
+  ) as HTMLElement | null;
+  if (headline) {
+    // 16 px icon + margins of the line, so both end at the same edge
+    headline.style.maxWidth = `${LINE_WIDTH + 26}px`;
+    headline.style.overflow = "hidden";
+    for (const label of Array.from(headline.children) as HTMLElement[]) {
+      label.style.minWidth = "0";
+    }
+  }
   const h = Math.ceil(text.getBoundingClientRect().height);
   if (h !== lastHeight) {
     win.sizeToContent();
