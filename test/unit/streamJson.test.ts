@@ -266,3 +266,52 @@ test("TurnCollector counts Read calls", () => {
   });
   assert.equal(c.reads, 1);
 });
+
+// Shape observed with claude 2.1.327 (MineGrad, 2026-11-18).
+const messageStart = {
+  type: "stream_event",
+  event: { type: "message_start", message: { model: "claude-opus-5-5" } },
+};
+const refusalStop = {
+  type: "stream_event",
+  event: {
+    type: "message_delta",
+    delta: {
+      stop_reason: "refusal",
+      stop_details: { type: "refusal", category: "cyber" },
+    },
+  },
+};
+
+test("TurnCollector: refusal stop, then the same model continues", () => {
+  const c = new TurnCollector();
+  c.add({ type: "system", subtype: "init", model: "claude-opus-5-5" });
+  c.add(messageStart);
+  c.add(textEvent("기존 연구의 한계는 PEFT는"));
+  c.add(refusalStop);
+  c.add({
+    type: "system",
+    subtype: "informational",
+    content:
+      "Opus 5.5's safeguards stopped the response above · continuing once with that noted",
+  });
+  c.add(messageStart);
+  c.add(textEvent("여기서 멈추겠습니다."));
+  c.add(okResult);
+  assert.equal(c.text, "여기서 멈추겠습니다.");
+  assert.deepEqual(c.refusalFallback, {
+    from: "claude-opus-5-5",
+    to: "claude-opus-5-5",
+  });
+  assert.equal(c.refusalCategory, "cyber");
+  assert.equal(c.error(), null);
+});
+
+test("TurnCollector: refusal stop without a continuation is an error", () => {
+  const c = new TurnCollector();
+  c.add(messageStart);
+  c.add(textEvent("partial"));
+  c.add(refusalStop);
+  c.add(okResult);
+  assert.deepEqual(c.error(), { kind: "refusal", message: "cyber" });
+});
